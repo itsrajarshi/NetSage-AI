@@ -340,7 +340,7 @@ function selectCaseForExplorer(caseItem) {
   };
 }
 
-function selectCaseForStudio(caseItem) {
+function selectCaseForStudio(caseItem, autoRun = true) {
   state.selectedCase = caseItem;
 
   // 1. Studio Header Card
@@ -416,7 +416,7 @@ function selectCaseForStudio(caseItem) {
 
   // 7. Reset AI Diagnosis Card
   const rootCauseEl = document.getElementById('studio-root-cause');
-  if (rootCauseEl) rootCauseEl.textContent = "Run diagnosis to generate evidence-backed root cause analysis.";
+  if (rootCauseEl) rootCauseEl.textContent = "Analyzing network evidence and show command outputs...";
 
   const confScoreEl = document.getElementById('studio-confidence-score');
   if (confScoreEl) confScoreEl.textContent = "--%";
@@ -426,7 +426,7 @@ function selectCaseForStudio(caseItem) {
 
   const confLevelEl = document.getElementById('studio-confidence');
   if (confLevelEl) {
-    confLevelEl.textContent = "Pending Execution";
+    confLevelEl.textContent = "Analyzing...";
     confLevelEl.style.color = "var(--color-slate)";
   }
 
@@ -434,7 +434,7 @@ function selectCaseForStudio(caseItem) {
   if (layerBadge) layerBadge.textContent = `${caseItem.osi_layer} · ${caseItem.concept}`;
 
   const quoteEl = document.getElementById('studio-evidence-quote');
-  if (quoteEl) quoteEl.textContent = "Exact matching evidence quotations from show commands will be extracted here.";
+  if (quoteEl) quoteEl.textContent = "Extracting grounded show-command citations...";
 
   const whyMattersEl = document.getElementById('studio-why-matters');
   if (whyMattersEl) whyMattersEl.innerHTML = `<strong>Why this matters:</strong> Observations from show-command captures corroborate root cause at ${caseItem.osi_layer}.`;
@@ -468,6 +468,11 @@ function selectCaseForStudio(caseItem) {
 
   const commentInput = document.getElementById('review-comment-input');
   if (commentInput) commentInput.value = '';
+
+  // Auto-run diagnosis so the user immediately sees the active troubleshooting investigation!
+  if (autoRun) {
+    runStudioDiagnosis();
+  }
 }
 
 function resetPipelineTracker() {
