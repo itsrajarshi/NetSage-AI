@@ -338,8 +338,10 @@ function selectCaseForExplorer(caseItem) {
     switchView('studio');
   };
 
-  // Scroll into view on mobile screens
+  // Toggle to detail view on mobile screens
   if (window.innerWidth <= 768) {
+    const btnToggleDetail = document.getElementById('btn-toggle-detail');
+    if (btnToggleDetail) btnToggleDetail.click();
     const detailPanel = document.getElementById('explorer-detail-panel');
     if (detailPanel) {
       detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -747,6 +749,45 @@ function initEventListeners() {
   }
   if (btnPingHealth) {
     btnPingHealth.addEventListener('click', pingHealthEndpoint);
+  }
+
+  // Evidence Deck Sub-Tab Switching
+  const deckTabs = document.querySelectorAll('.deck-tab');
+  deckTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetTab = tab.getAttribute('data-tab');
+      deckTabs.forEach(t => t.classList.toggle('active', t === tab));
+      
+      const paneEvidence = document.getElementById('pane-evidence');
+      const paneTopology = document.getElementById('pane-topology');
+      const paneScope = document.getElementById('pane-scope');
+
+      if (paneEvidence) paneEvidence.classList.toggle('hidden', targetTab !== 'evidence');
+      if (paneTopology) paneTopology.classList.toggle('hidden', targetTab !== 'topology');
+      if (paneScope) paneScope.classList.toggle('hidden', targetTab !== 'scope');
+    });
+  });
+
+  // Explorer Mobile Segmented Toggle
+  const btnToggleList = document.getElementById('btn-toggle-list');
+  const btnToggleDetail = document.getElementById('btn-toggle-detail');
+  const listContainer = document.getElementById('cases-list-container');
+  const detailPanel = document.getElementById('explorer-detail-panel');
+
+  if (btnToggleList && btnToggleDetail) {
+    btnToggleList.addEventListener('click', () => {
+      btnToggleList.classList.add('active');
+      btnToggleDetail.classList.remove('active');
+      if (listContainer) listContainer.style.display = 'flex';
+      if (detailPanel) detailPanel.style.display = 'none';
+    });
+
+    btnToggleDetail.addEventListener('click', () => {
+      btnToggleDetail.classList.add('active');
+      btnToggleList.classList.remove('active');
+      if (listContainer) listContainer.style.display = 'none';
+      if (detailPanel) detailPanel.style.display = 'block';
+    });
   }
 
   // Human Override Form Submission
