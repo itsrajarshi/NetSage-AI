@@ -34,22 +34,22 @@ function initPreloader() {
   if (!preloader || !bar) return;
 
   // Step 1
-  bar.style.width = '35%';
+  bar.style.width = '45%';
   if (status) status.textContent = 'Loading Cisco Packet Tracer cases...';
 
   setTimeout(() => {
-    bar.style.width = '75%';
-    if (status) status.textContent = 'Synchronizing Deterministic Rule Checker...';
-  }, 400);
+    bar.style.width = '80%';
+    if (status) status.textContent = 'Synchronizing deterministic rule checker...';
+  }, 180);
 
   setTimeout(() => {
     bar.style.width = '100%';
-    if (status) status.textContent = 'Ready · NetSage AI Online';
-  }, 800);
+    if (status) status.textContent = 'Ready · NetSage AI online';
+  }, 380);
 
   setTimeout(() => {
     preloader.classList.add('fade-out');
-  }, 1100);
+  }, 520);
 }
 
 function initNavigation() {
@@ -98,11 +98,11 @@ function switchView(viewName) {
 
   // Update Topbar Titles
   const titles = {
-    dashboard: { tag: '[ 01 / Overview ]', title: 'Executive Dashboard <span class="serif-accent">at a glance.</span>', subtitle: 'Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.' },
-    explorer: { tag: '[ 02 / Knowledge Base ]', title: 'Case Explorer <span class="serif-accent">39 lab scenarios.</span>', subtitle: 'Browse Cisco Packet Tracer lab cases with complete topology and show-command evidence.' },
-    studio: { tag: '[ 03 / Diagnostics ]', title: 'Diagnosis Studio <span class="serif-accent">& human review gate.</span>', subtitle: 'Deterministic rule validation, AI-assisted root cause analysis, and mandatory human review.' },
-    verifier: { tag: '[ 04 / Verification ]', title: 'Packet Tracer Lab Verifier <span class="serif-accent">closed loop.</span>', subtitle: 'Simulate applying configuration fixes and verify resolution in a virtual network environment.' },
-    responsible: { tag: '[ 05 / Safety & Audit ]', title: 'Responsible AI & Correction Audit <span class="serif-accent">5 case log.</span>', subtitle: 'Registry of failure modes and human expert corrections ensuring AI safety and reliability.' }
+    dashboard: { tag: 'Overview', title: 'Executive Dashboard <span class="serif-accent">at a glance.</span>', subtitle: 'Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.' },
+    explorer: { tag: 'Knowledge Base', title: 'Case Explorer <span class="serif-accent">39 lab scenarios.</span>', subtitle: 'Browse Cisco Packet Tracer lab cases with complete topology and show-command evidence.' },
+    studio: { tag: 'Diagnostics', title: 'Diagnosis Studio <span class="serif-accent">& human review gate.</span>', subtitle: 'Deterministic rule validation, AI-assisted root cause analysis, and mandatory human review.' },
+    verifier: { tag: 'Verification', title: 'Packet Tracer Lab Verifier <span class="serif-accent">closed loop.</span>', subtitle: 'Simulate applying configuration fixes and verify resolution in a virtual network environment.' },
+    responsible: { tag: 'Safety & Audit', title: 'Responsible AI & Correction Audit <span class="serif-accent">5 case log.</span>', subtitle: 'Registry of failure modes and human expert corrections ensuring AI safety and reliability.' }
   };
 
   const current = titles[viewName] || titles.dashboard;
@@ -213,10 +213,9 @@ function renderMetrics(data) {
   if (totalReviewed === 0 || agreementRate === null || agreementRate === undefined) {
     if (agreementRateEl) agreementRateEl.textContent = 'N/A';
   } else if (agreementRateEl) {
-    // Animate to the integer, then settle on the exact one-decimal value to
-    // stay consistent with the API and the requirements audit (e.g. 45.5%).
-    animateValue(agreementRateEl, 0, Math.round(agreementRate), 800, '%');
-    setTimeout(() => { agreementRateEl.textContent = `${agreementRate}%`; }, 850);
+    // Show the exact one-decimal value to match the API and the requirements
+    // audit (e.g. 45.5%). No integer animation — it races the final repaint.
+    agreementRateEl.textContent = `${agreementRate}%`;
   }
 
   animateValue(reviewedCasesEl, 0, totalReviewed, 600);
@@ -225,10 +224,14 @@ function renderMetrics(data) {
   // Render Concept Distribution Chart
   const chartContainer = document.getElementById('concept-chart');
   chartContainer.innerHTML = '';
-  const total = data.total_cases || 1;
+  const counts = Object.values(data.concept_distribution || {});
+  const maxCount = counts.length ? Math.max(...counts) : 1;
 
-  for (const [concept, count] of Object.entries(data.concept_distribution || {})) {
-    const pct = Math.round((count / total) * 100);
+  const entries = Object.entries(data.concept_distribution || {})
+    .sort((a, b) => b[1] - a[1]);
+  for (const [concept, count] of entries) {
+    // Scale bars to the largest concept so the smallest is still readable.
+    const pct = Math.round((count / maxCount) * 100);
     const row = document.createElement('div');
     row.className = 'bar-row';
     row.innerHTML = `
