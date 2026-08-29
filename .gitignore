@@ -1,0 +1,38 @@
+# Python & Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# SQLite Database & Local Data State
+backend/*.db
+backend/*.sqlite3
+*.db-journal
+
+# Planning, Scratchpad & IDE artifacts
+.planning/
+.agents/
+.gemini/
+.vscode/
+.idea/
+scratch/
+browser/
+*.log
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+
+# OS Artifacts
+Thumbs.db
+Desktop.ini
+.DS_Store
