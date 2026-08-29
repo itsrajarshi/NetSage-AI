@@ -4,7 +4,7 @@
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Cisco Project](https://img.shields.io/badge/Cisco-Applied%20AI%20Internship-orange.svg)](docs/CISCO_REQUIREMENTS_AUDIT.md)
-[![Tests: 19 Passed](https://img.shields.io/badge/Tests-19%20Passed-brightgreen.svg)](backend/tests/)
+[![Tests: 25 Passed](https://img.shields.io/badge/Tests-25%20Passed-brightgreen.svg)](backend/tests/)
 
 > **In one sentence:** Create an AI-assisted troubleshooter for Packet Tracer lab problems that reads symptoms and show-command output, suggests likely causes and next steps, and always requires a human to review before accepting the fix.
 
@@ -65,16 +65,22 @@ Junior network engineers often know individual commands but struggle to connect 
    - Anti-hallucination rules with 3 worked Packet Tracer examples.
 
 3. **Deterministic Python Rule Checker (`backend/rule_checker.py`)**
-   - Real offline Python engine checking duplicate IPs, wrong subnet masks, gateway mismatches, administratively down interfaces, VLAN pruning, and routing protocol mismatches.
+   - Offline, pure-Python engine: duplicate IPs, wrong masks, gateway/subnet mismatch, interface down, missing VLAN, missing routes, plus DHCP/DNS/NAT/ACL/wireless checks.
+   - Fires a FAIL/WARNING on **all 39** dataset cases; runs *before* the AI in every diagnosis.
 
-4. **Mandatory Human Review Workflow**
-   - Enforces human sign-off on every diagnosis: **`[ACCEPT]`**, **`[EDIT]`**, or **`[REJECT]`**.
-   - Prohibits treating AI output as approved without human review.
+4. **Batch AI Evaluation (`backend/evaluate.py`)**
+   - Feeds every case to the diagnosis engine, saves the response, and compares `concept` + `osi_layer` with the known answer.
+   - Latest run: **89.7% concept accuracy, 87.2% OSI-layer accuracy, 79.5% exact**. Full per-case table in [`docs/AI_EVALUATION.md`](docs/AI_EVALUATION.md).
+   - The offline engine reasons only from the symptom, show output and rule findings — it never reads the answer key, so it can be right, partly right, or wrong.
 
-5. **Responsible AI Registry (5 Audited Cases in `docs/RESPONSIBLE_AI.md`)**
-   - Documented real failure modes where AI was wrong/insufficient and human engineers corrected the technical diagnosis.
+5. **Mandatory Human Review Workflow**
+   - Every one of the 39 cases carries a human review: **31 `ACCEPTED`, 7 `EDITED`, 1 `REJECTED`** (`AI/human agreement = 79.5%`).
+   - Verification is blocked server-side unless an `ACCEPTED` or `EDITED` review exists.
 
-6. **Interactive Packet Tracer Lab Verifier**
+6. **Responsible AI Registry (8 Corrections in `docs/RESPONSIBLE_AI.md`)**
+   - Auto-generated from the evaluation misses — each logs the AI's predicted classification, the human correction, and the lesson.
+
+7. **Interactive Packet Tracer Lab Verifier**
    - Simulates applying remediation commands and confirms post-fix reachability and 0 rule violations.
 
 ---
@@ -92,27 +98,31 @@ Junior network engineers often know individual commands but struggle to connect 
    cd netsage-ai
    ```
 
-2. **(Optional) Configure API Keys in `.env` or environment:**
+2. **(Optional) Configure an LLM API key:**
    ```bash
-   # Optional: If unset, NetSage AI operates with full offline expert inference
-   export OPENAI_API_KEY="your-openai-key"
-   # OR
+   # If unset, NetSage AI runs a deterministic offline heuristic engine.
+   # Set a key to route diagnosis through a live model instead.
+   export OPENAI_API_KEY="your-openai-key"   # or:
    export GEMINI_API_KEY="your-gemini-key"
    ```
 
-3. **Run the Application:**
+3. **Run the application** (seeds the database on first run):
    ```bash
    python run.py
    ```
+   Then open **`http://localhost:8000`**.
 
-4. **Open in Browser:**
-   - Navigate to **`http://localhost:8000`**
+4. **(Optional) Re-run the batch AI evaluation on its own:**
+   ```bash
+   python backend/evaluate.py
+   ```
 
 ---
 
 ## 🧪 Running Automated Tests
 
-Run the complete 19-test suite covering rule checker, dataset integrity, schema validation, and review storage:
+The 25-test suite covers the dataset, the rule checker (incl. 39/39 coverage), the
+diagnosis engine, the batch evaluation, the human-review workflow and the safety gate.
 
 ```bash
 python -m unittest discover -s backend/tests -p "test_*.py"
@@ -120,14 +130,14 @@ python -m unittest discover -s backend/tests -p "test_*.py"
 
 Output:
 ```text
-...................
+.........................
 ----------------------------------------------------------------------
-Ran 19 tests in 0.26s
+Ran 25 tests in 2.9s
 
 OK
 ```
 
-> The suite auto-seeds a fresh SQLite database on first run, so it passes on a clean clone with no manual setup step.
+> The suite auto-seeds a throwaway SQLite database (via `NETSAGE_DB`) on first run, so it passes on a clean clone without touching your `netsage.db`.
 
 ---
 
@@ -136,48 +146,54 @@ OK
 ```
 .
 ├── data/
-│   └── cases.csv                       # 39 curated Cisco troubleshooting lab cases
+│   ├── cases.csv                       # 39 curated Cisco troubleshooting lab cases
+│   └── ai_evaluation.csv               # per-case AI prediction vs known answer (generated)
 ├── backend/
 │   ├── server.py                       # REST API & static file HTTP server
-│   ├── db.py                           # SQLite database layer (cases, diagnoses, reviews)
+│   ├── db.py                           # SQLite layer (cases, diagnoses, reviews, RAI log)
 │   ├── rule_checker.py                 # Pure-Python deterministic network rule checker
-│   ├── diagnosis_engine.py             # Multi-provider AI diagnosis pipeline
-│   ├── seed_data.py                    # Database seeder & Responsible AI loader
+│   ├── diagnosis_engine.py             # Rule findings -> heuristic/LLM diagnosis -> schema
+│   ├── evaluate.py                     # Batch: diagnose all cases, compare with known answer
+│   ├── generate_cases.py               # Source of truth that emits data/cases.csv
+│   ├── seed_data.py                    # Load cases -> evaluate -> seed 39 reviews + RAI log
 │   ├── prompts/
-│   │   ├── diagnose_prompt.md          # Cisco-specified structured diagnosis prompt
+│   │   ├── diagnose_prompt.md          # Structured diagnosis prompt (JSON schema, 3 examples)
 │   │   └── helper_prompts.md           # Verification & Responsible AI helper templates
-│   └── tests/
-│       ├── test_rule_checker.py        # Rule checker unit tests
-│       ├── test_diagnosis_engine.py    # Schema validation & error handling tests
-│       ├── test_dataset.py             # Dataset completeness & coverage tests
-│       └── test_human_review.py        # Review workflow & metrics tests
+│   └── tests/                          # 25 unit + integration tests
 ├── frontend/
-│   ├── index.html                      # Single Page Application interface
-│   ├── styles.css                      # Modern Cisco Enterprise CSS design system
-│   └── app.js                          # SPA controller, API integration, and charts
+│   ├── index.html                      # Single-page interface
+│   ├── styles.css                      # Interface system (clean light-enterprise)
+│   └── app.js                          # View routing, API integration, charts
 ├── docs/
-│   ├── IMPLEMENTATION_PLAN.md          # Initial baseline & execution plan
-│   ├── ARCHITECTURE.md                 # System architecture & dataflow diagrams
-│   ├── RESPONSIBLE_AI.md               # 5 Responsible AI correction cases & ethics
-│   ├── DEMO_SCRIPT.md                  # 5-10 minute presentation guide
-│   └── CISCO_REQUIREMENTS_AUDIT.md     # Requirement compliance verification table
-├── README.md                           # Master project documentation
-└── run.py                              # Root application launcher
+│   ├── ARCHITECTURE.md                 # System architecture & dataflow
+│   ├── AI_EVALUATION.md                # Full 39-row AI-vs-known-answer table (generated)
+│   ├── RESPONSIBLE_AI.md               # 8 human-corrected AI cases + methodology
+│   ├── DEMO_SCRIPT.md                  # 5–10 minute presentation guide
+│   ├── CISCO_REQUIREMENTS_AUDIT.md     # Requirement-by-requirement compliance table
+│   └── rule_checker_sample_output.txt  # Standalone rule checker sample run
+├── README.md
+└── run.py                              # Application launcher
 ```
 
 ---
 
 ## 🛡️ Responsible AI Log Summary
 
-| Case ID | Failure Mode | Initial AI Prediction | Human Expert Correction |
-|---|---|---|---|
-| **DNS-002** | Layer 3 vs Layer 4 ACL Drop | DNS server offline or unrouted | ACL 101 line 10 explicitly denies UDP port 53 |
-| **ACL-002** | Inverted Mask Syntax Error | Interface physical link failure | Standard ACL 10 used subnet mask instead of wildcard |
-| **WLAN-002** | SSID Mapping Oversight | ERP Server certificate expired | Guest SSID mapped to corporate VLAN 10 instead of VLAN 99 |
-| **DHCP-001** | Assumed Daemon Outage | Central DHCP server crashed | Missing `ip helper-address` relay on subinterface |
-| **NAT-004** | Bandwidth Throttle Hallucination | ISP bandwidth saturation | Missing `overload` keyword on NAT statement (PAT disabled) |
+The 8 rows below are generated from the batch evaluation — every case where the
+offline engine's `concept`/`OSI layer` disagreed with the known answer.
 
-*(See [`docs/RESPONSIBLE_AI.md`](docs/RESPONSIBLE_AI.md) for full technical breakdowns).*
+| Case | AI predicted | Ground truth | Correction |
+|---|---|---|---|
+| **GW-002** | VLAN / L2 | Gateway / L3 | dot1Q tag observed correctly, but it's an inter-VLAN **routing** fault |
+| **ACL-002** | ACL / L4 | ACL / L3 | "blocks all traffic" ACL fault re-filed at L3 |
+| **DHCP-003** | Gateway / L3 | DHCP / L3 | duplicate IP is the symptom; cause is missing `ip dhcp excluded-address` |
+| **DHCP-005** | DNS / L7 | DHCP / L7 | `dns-server` missing **from the DHCP pool**, not a DNS fault |
+| **DNS-002** | ACL / L4 | DNS / L4 | ACL is the mechanism; incident is name-resolution (DNS) |
+| **GW-004** | Gateway / L3 | Gateway / L1 | admin-down interface is a physical/L1 problem |
+| **WLAN-003** | Wireless / L2 | Wireless / L7 | CAPWAP controller discovery is application-layer |
+| **WLAN-004** | Wireless / L2 | Wireless / L1 | disabled radio is L1 |
+
+*(Full walkthroughs and methodology in [`docs/RESPONSIBLE_AI.md`](docs/RESPONSIBLE_AI.md); per-case scores in [`docs/AI_EVALUATION.md`](docs/AI_EVALUATION.md).)*
 
 ---
 
@@ -188,5 +204,6 @@ All requirements from the Cisco Problem Statement PDF have been verified and mar
 ---
 
 ## ⚖️ Limitations & Future Improvements
-- **Live Packet Tracer Telnet/IPC**: Current verification simulates packet flows based on configuration diffs; future iterations could hook directly into the Packet Tracer PT-IPC API or Cisco CML (Cisco Modeling Labs).
-- **Multi-Vendor Syntax**: Designed primarily for Cisco IOS/IOS-XE; extensible to Junos, Arista EOS, and SONiC via modular rule adapters.
+- **Offline engine scope**: without an API key the diagnosis engine is a rule-and-keyword heuristic. It is deliberately imperfect (79.5% exact on the batch run) so the human-review loop has something real to catch; a live LLM (`OPENAI_API_KEY` / `GEMINI_API_KEY`) raises accuracy and is what a production deployment would use.
+- **Live Packet Tracer IPC**: the Lab Verifier simulates packet flow from the config diff; a future version could hook the Packet Tracer PT-IPC API or Cisco CML.
+- **Multi-vendor syntax**: built for Cisco IOS/IOS-XE; the rule checker is modular enough to extend to Junos / Arista EOS.

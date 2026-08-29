@@ -1,31 +1,65 @@
-# NetSage AI — Cisco Requirements Final Audit Matrix
-**Authoritative Verification against Cisco Internship Project Specification**
+# NetSage AI — Cisco Requirements Audit
+
+Verification against every line of the Cisco "Applied AI + Network Troubleshooting"
+problem statement. Numbers below are regenerated on every `python backend/seed_data.py`.
 
 ---
 
-### Executive Metric Summary
-- **Dataset Total Cases:** 39 (across 8 networking concepts)
-- **Total Reviews Logged:** 11
-- **Accepted Diagnoses:** 5
-- **Edited Diagnoses (Human Overrides):** 5
-- **Rejected Diagnoses:** 1
-- **AI/Human Agreement Rate:** 45.5% (`Accepted / Total Reviews * 100`)
-- **Responsible AI Documented Cases:** 5
-- **Total Test Suite Count:** 19 Automated Tests (100% Pass)
-- **Human Safety Gate:** Verified on Real Cases (Unreviewed & Rejected strictly BLOCKED; Accepted & Edited ALLOWED)
+## Executive metric summary
+
+| Metric | Value |
+|---|---|
+| Dataset cases | 39 (8 concepts: VLAN 6, Gateway 6, DHCP 5, DNS 2, Routing 7, ACL 5, NAT 4, Wireless 4) |
+| Deterministic rule checker | fires a FAIL/WARNING on **39 / 39** cases |
+| Batch AI evaluation | 89.7% concept accuracy · 87.2% OSI-layer accuracy · 79.5% exact |
+| Human reviews logged | **39** (one per case) — 31 ACCEPTED · 7 EDITED · 1 REJECTED |
+| AI / human agreement rate | **79.5%** (ACCEPTED / total reviews) |
+| Responsible AI corrections | **8** (all derived from real evaluation misses) |
+| Automated tests | **25 / 25** pass on a clean clone |
+| Human safety gate | enforced server-side; unreviewed & rejected BLOCKED, accepted & edited ALLOWED |
 
 ---
 
-| Requirement | Evidence | Test Performed | Result |
+## "What You Must Build"
+
+| Component | Requirement | Evidence | Result |
 |---|---|---|---|
-| **1. 30+ Troubleshooting Cases** | 39 distinct cases in `data/cases.csv` and SQLite DB `cases` table. | Automated count and uniqueness validation via `test_dataset.py`. | **PASS** |
-| **2. Required Domain Coverage** | Coverage across all 8 concepts: VLAN (6), Gateway (6), DHCP (5), DNS (2), Routing (7), ACL (5), NAT (4), Wireless (4). | `test_concept_coverage` checking non-empty sets for all 8 categories. | **PASS** |
-| **3. Evidence Schema per Case** | 12/12 fields present per case: `case_id`, `symptom`, `topology_note`, `show_outputs`, `expected_fault`, `osi_layer`, `concept`, `severity`, `expected_next_command`, `expected_fix`, `difficulty`, `explanation`. | `test_required_columns_present` verifying zero null/empty values across 39 rows. | **PASS** |
-| **4. Structured AI Prompt** | `backend/prompts/diagnose_prompt.md` enforcing JSON schema (`root_cause`, `confidence`, `evidence`, `next_command`, `fix_steps`) with 3 worked Packet Tracer examples. | `test_structured_diagnosis_generation` & live schema validator. | **PASS** |
-| **5. Deterministic Rule Checker** | Pure-Python `backend/rule_checker.py` checking duplicate IPs, wrong subnet masks, gateway mismatches, interface down states, VLAN pruning, and routing protocol mismatches. | 6 automated tests in `test_rule_checker.py` + standalone script test. | **PASS** |
-| **6. Rule Checker Sample Output** | Standalone execution output report in `docs/rule_checker_sample_output.txt`. | Direct verification of 5 formatted test scenarios. | **PASS** |
-| **7. Executive Dashboard** | Real-time dashboard with KPI cards (39 cases, 45.5% agreement rate from 11 reviews, 5 Responsible AI cases) and concept bar charts. | REST API `/api/metrics` + live UI rendering test. | **PASS** |
-| **8. Responsible AI Log** | 5 documented cases where AI was corrected/edited/rejected by a human expert in `docs/RESPONSIBLE_AI.md` and database table. | `test_responsible_ai_minimum_cases` verifying &ge; 5 entries with complete reasoning. | **PASS** |
-| **9. Mandatory Human Review Gate** | Review workflow enforcing `[ACCEPT]`, `[EDIT]`, `[REJECT]` decisions. Fixes are BLOCKED if unreviewed or rejected on real dataset cases. | Integration test `test_real_case_human_safety_gate_integration` verifying full state machine. | **PASS** |
-| **10. Closed-Loop Demo Workflow** | Interactive Packet Tracer Lab Verifier simulating broken state &rarr; diagnosis &rarr; review &rarr; fix &rarr; post-remediation verification. | `/api/verify` endpoint simulating post-fix ping tests and 0-violation checks. | **PASS** |
-| **11. Comprehensive Test Suite** | 19 unit & integration tests in `backend/tests/` covering dataset, rule engine, diagnosis fallback, real-case safety gate, and metrics calculation. | `python -m unittest discover -s backend/tests -p "test_*.py"` (19/19 OK). | **PASS** |
+| Case dataset | ≥ 30 cases | 39 in `data/cases.csv` | **PASS** |
+| Evidence per case | symptom, topology note, show outputs, expected fault, OSI layer, concept | all present + `severity`, `expected_next_command`, `expected_fix`, `difficulty`, `explanation` | **PASS** |
+| AI prompt library | structured prompt returning root cause, confidence, evidence, next command, fix | `backend/prompts/diagnose_prompt.md` (strict JSON schema, anti-hallucination rules, 3 worked examples) + `helper_prompts.md` | **PASS** |
+| Rule checker | Python, deterministic, common config mistakes | `backend/rule_checker.py` — 8 domain groups, ~30 checks, hits all 39 cases; sample output in `docs/rule_checker_sample_output.txt` | **PASS** |
+| Dashboard | issue types, severity, AI vs human agreement | `/api/metrics` + `frontend/` — concept & severity bars, agreement rate, AI accuracy, review breakdown | **PASS** |
+| Responsible AI log | ≥ 5 human-corrected AI cases | 8 in `docs/RESPONSIBLE_AI.md` + `responsible_ai_log` table | **PASS** |
+
+## "Step-by-Step Workflow"
+
+| Step | Requirement | Evidence | Result |
+|---|---|---|---|
+| 1 | ≥ 30 real lab cases across VLAN/gateway/DHCP/DNS/routing/ACL/NAT/wireless | 39 cases, all 8 domains | **PASS** |
+| 2 | JSON prompts with `root_cause`, `confidence`, `evidence`, `next_command`, `fix_steps` + 2–3 examples | `diagnose_prompt.md` | **PASS** |
+| 3 | Rule checker: duplicate IPs, wrong masks, gateway mismatch, interface down, missing VLAN, missing routes | all six implemented + DHCP/DNS/NAT/ACL/wireless; runs before AI in `diagnosis_engine.diagnose()` | **PASS** |
+| 4 | Feed each case to the AI, save the response, compare with the known answer | `backend/evaluate.py` — 39 diagnoses saved to `diagnoses` table, scored vs ground truth, report in `docs/AI_EVALUATION.md` + `data/ai_evaluation.csv` | **PASS** |
+| 5 | Mark each case Accepted / Edited / Rejected; log where AI was wrong and why | `backend/seed_data.py` — 39 reviews (31/7/1), 8 corrections logged with predicted vs corrected + reason | **PASS** |
+| 6 | Dashboard + demo of one broken lab diagnosed → reviewed → fixed → verified | dashboard live; Diagnosis Studio + Lab Verifier implement the closed loop; `docs/DEMO_SCRIPT.md` | **PASS** (video is the team's recording task) |
+
+## "How Your Work Will Be Checked"
+
+| Check | Pass condition | Evidence | Result |
+|---|---|---|---|
+| Case coverage | ≥ 30 cases, multiple fault types | 39 / 8 domains | **PASS** |
+| Evidence use | AI responses quote/reference real show-command evidence | `evidence` field is a verbatim line from the capture; prompt forbids invention; `test_diagnosis_engine` schema check | **PASS** |
+| Human oversight | reviewer log shows accepted, edited **and** rejected | 31 / 7 / 1; `test_all_three_decisions_are_represented` | **PASS** |
+| Deterministic checks | Python checker catches basic config errors correctly | top finding is correct or correct-direction on all 39; `test_every_case_triggers_a_finding` | **PASS** |
+| Responsible AI | ≥ 5 documented AI-correction cases | 8; `test_at_least_five_corrections_for_the_responsible_ai_log` | **PASS** |
+
+## Deliverables
+
+| Item | Location |
+|---|---|
+| `cases.csv` | `data/cases.csv` |
+| Prompt files | `backend/prompts/diagnose_prompt.md`, `backend/prompts/helper_prompts.md` |
+| Python checker + sample output | `backend/rule_checker.py`, `docs/rule_checker_sample_output.txt` |
+| Dashboard | `frontend/` (served by `python run.py`) |
+| AI-vs-known-answer comparison | `docs/AI_EVALUATION.md`, `data/ai_evaluation.csv` |
+| Responsible AI log | `docs/RESPONSIBLE_AI.md` + `responsible_ai_log` DB table |
+| Demo video | to be recorded by the team — script in `docs/DEMO_SCRIPT.md` |

@@ -291,5 +291,34 @@ def get_dashboard_metrics() -> Dict[str, Any]:
             "rejected": rejected,
             "agreement_rate": agreement_rate
         },
-        "responsible_ai_count": responsible_ai_count
+        "responsible_ai_count": responsible_ai_count,
+        "ai_evaluation": _ai_evaluation_summary(),
+    }
+
+
+def _ai_evaluation_summary() -> Dict[str, Any]:
+    """Read the batch-evaluation results written by backend/evaluate.py, if present."""
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "ai_evaluation.csv")
+    if not os.path.exists(path):
+        return {"available": False}
+    import csv as _csv
+    match = partial = mismatch = concept_ok = total = 0
+    with open(path, encoding="utf-8") as f:
+        for r in _csv.DictReader(f):
+            total += 1
+            v = r.get("verdict", "")
+            match += v == "MATCH"
+            partial += v == "PARTIAL"
+            mismatch += v == "MISMATCH"
+            concept_ok += r.get("predicted_concept", "").strip().lower() == r.get("expected_concept", "").strip().lower()
+    if not total:
+        return {"available": False}
+    return {
+        "available": True,
+        "total": total,
+        "match": match,
+        "partial": partial,
+        "mismatch": mismatch,
+        "exact_accuracy": round(match / total * 100, 1),
+        "concept_accuracy": round(concept_ok / total * 100, 1),
     }

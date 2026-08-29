@@ -102,7 +102,7 @@ function switchView(viewName) {
     explorer: { tag: 'Knowledge Base', title: 'Case Explorer <span class="serif-accent">39 lab scenarios.</span>', subtitle: 'Browse Cisco Packet Tracer lab cases with complete topology and show-command evidence.' },
     studio: { tag: 'Diagnostics', title: 'Diagnosis Studio <span class="serif-accent">& human review gate.</span>', subtitle: 'Deterministic rule validation, AI-assisted root cause analysis, and mandatory human review.' },
     verifier: { tag: 'Verification', title: 'Packet Tracer Lab Verifier <span class="serif-accent">closed loop.</span>', subtitle: 'Simulate applying configuration fixes and verify resolution in a virtual network environment.' },
-    responsible: { tag: 'Safety & Audit', title: 'Responsible AI & Correction Audit <span class="serif-accent">5 case log.</span>', subtitle: 'Registry of failure modes and human expert corrections ensuring AI safety and reliability.' }
+    responsible: { tag: 'Safety & Audit', title: 'Responsible AI & Correction Audit <span class="serif-accent">8 case log.</span>', subtitle: 'Every case where the AI’s concept or OSI-layer classification disagreed with the known answer, and how a human corrected it.' }
   };
 
   const current = titles[viewName] || titles.dashboard;
@@ -179,15 +179,18 @@ async function fetchResponsibleAiLogs() {
 
 function animateValue(element, start, end, duration = 800, suffix = '') {
   if (!element) return;
+  // Set the final value up front so the number is always correct even if
+  // requestAnimationFrame never runs (e.g. the tab is in the background).
+  element.textContent = `${end}${suffix}`;
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || typeof requestAnimationFrame !== 'function') return;
+
   const startTime = performance.now();
-  
   function update(currentTime) {
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    // Smooth ease-out curve
+    const progress = Math.min((currentTime - startTime) / duration, 1);
     const ease = 1 - Math.pow(1 - progress, 3);
-    const current = Math.floor(start + (end - start) * ease);
-    element.textContent = `${current}${suffix}`;
+    element.textContent = `${Math.floor(start + (end - start) * ease)}${suffix}`;
     if (progress < 1) {
       requestAnimationFrame(update);
     } else {
@@ -220,6 +223,16 @@ function renderMetrics(data) {
 
   animateValue(reviewedCasesEl, 0, totalReviewed, 600);
   animateValue(responsibleCountEl, 0, data.responsible_ai_count || 5, 700);
+
+  const evalData = data.ai_evaluation || {};
+  const aiAccuracyEl = document.getElementById('kpi-ai-accuracy');
+  const aiExactEl = document.getElementById('kpi-ai-exact');
+  if (aiAccuracyEl) {
+    aiAccuracyEl.textContent = evalData.available ? `${evalData.concept_accuracy}%` : 'N/A';
+  }
+  if (aiExactEl) {
+    aiExactEl.textContent = evalData.available ? `${evalData.exact_accuracy}%` : '--';
+  }
 
   // Render Concept Distribution Chart
   const chartContainer = document.getElementById('concept-chart');

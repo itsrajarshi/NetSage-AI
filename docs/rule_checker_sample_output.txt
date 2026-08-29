@@ -1,79 +1,36 @@
-================================================================================
-NetSage AI — Deterministic Python Rule Checker Sample Execution Output
-================================================================================
+==============================================================================
+NetSage AI - Deterministic Rule Checker - Sample Execution
+==============================================================================
 
-Test Run: 2026-08-29
-Script: backend/rule_checker.py
-Python Version: Python 3.12.10
+--- Layer 2 VLAN pruning on a trunk ---
+[FAIL] Trunk Allowed VLAN List (HIGH)
+    evidence : Trunk allowed VLANs: '1-9,11-4094'.
+    detail   : The trunk carries an explicit (pruned) allowed-VLAN list. Any production VLAN not in this range is dropped between switches.
 
---------------------------------------------------------------------------------
-Scenario 1: Layer 2 VLAN Pruning on Trunk Link
---------------------------------------------------------------------------------
-Input Symptom: PC in Sales cannot ping across trunk Fa0/24 to SW-2
-Show Output:
-  SW-1# show interfaces trunk
-  Port        Mode         Encapsulation  Status        Native vlan
-  Fa0/24      on           802.1q         trunking      1
-  Port        Vlans allowed on trunk
-  Fa0/24      1-9,11-4094
+--- Layer 3 duplicate IP conflict ---
+[FAIL] Duplicate IP Address Detection (CRITICAL)
+    evidence : %IP-4-DUPADDR: Duplicate address 192.168.10.1 on GigabitEthernet0/0
+    detail   : IOS reports a duplicate IP (192.168.10.1) on GigabitEthernet0/0. Two devices claim the same address, causing ARP instability and intermittent loss.
 
-Rule Checker Findings:
-[FAIL] Trunk Allowed VLAN Pruning (Severity: HIGH)
-  Evidence: Port Fa0/24 allowed VLANs: '1-9,11-4094' (VLAN 10 is omitted).
-  Explanation: Trunk port Fa0/24 explicitly restricts allowed VLANs, pruning VLAN 10 from traversing between switches.
+--- Default gateway outside host subnet ---
+[FAIL] Host / Gateway Subnet Containment (HIGH)
+    evidence : Host 10.0.1.50/255.255.255.0 (network 10.0.1.0) does not contain gateway 10.0.2.1.
+    detail   : The configured default gateway 10.0.2.1 is outside the host's local subnet, so ARP for the gateway never resolves.
 
---------------------------------------------------------------------------------
-Scenario 2: Layer 3 Duplicate IP Address Conflict
---------------------------------------------------------------------------------
-Input Symptom: Workstation experiencing intermittent connectivity; gateway unreachable.
-Show Output:
-  %IP-4-DUPADDR: Duplicate address 192.168.10.1 on GigabitEthernet0/0, sourced by 0050.7966.6800
+--- DHCP relay missing (APIPA) ---
+[FAIL] APIPA Address Allocation (HIGH)
+    evidence : Host holds an APIPA link-local address 169.254.120.44.
+    detail   : A 169.254.x.x address means the client never received a DHCP reply - the DHCP server is down or, across a routed boundary, 'ip helper-address' is missing.
+[FAIL] DHCP Relay (ip helper-address) (HIGH)
+    evidence : R1# show running-config interface g0/0.20
+    detail   : The client subnet is on a routed subinterface with no 'ip helper-address', so broadcast DHCP Discover packets are never forwarded to the server.
 
-Rule Checker Findings:
-[FAIL] Duplicate IP Address Detection (Severity: CRITICAL)
-  Evidence: %IP-4-DUPADDR: Duplicate address 192.168.10.1 on GigabitEthernet0/0, sourced by 0050.7966.6800
-  Explanation: A duplicate IP address (192.168.10.1) was detected on GigabitEthernet0/0. Two distinct MAC addresses claim the same IP, causing ARP instability.
+--- Missing default route ---
+[WARNING] Gateway of Last Resort (MEDIUM)
+    evidence : 'Gateway of last resort is not set' with no default route present.
+    detail   : No default route: traffic to any network not explicitly in the routing table is dropped. Add 'ip route 0.0.0.0 0.0.0.0 <next-hop>' or a routing-protocol default.
 
---------------------------------------------------------------------------------
-Scenario 3: Layer 1 Interface Administratively Down
---------------------------------------------------------------------------------
-Input Symptom: Branch office has no internet reachability.
-Show Output:
-  R-Branch# show ip interface brief
-  GigabitEthernet0/0     192.168.1.1     YES manual administratively down down
-
-Rule Checker Findings:
-[FAIL] Interface Administrative State (Severity: CRITICAL)
-  Evidence: Interface GigabitEthernet0/0 is reported as 'administratively down'.
-  Explanation: Interface GigabitEthernet0/0 has been shut down via configuration ('shutdown' command) and cannot pass traffic until 'no shutdown' is issued.
-
---------------------------------------------------------------------------------
-Scenario 4: Layer 4 Standard ACL Inverted Subnet Mask
---------------------------------------------------------------------------------
-Input Symptom: All traffic blocked on VLAN 10 after applying ACL 10.
-Show Output:
-  R1# show access-lists 10
-  Standard IP access list 10
-      10 permit 192.168.10.0 255.255.255.0
-
-Rule Checker Findings:
-[FAIL] ACL Wildcard Mask Format (Severity: CRITICAL)
-  Evidence: Standard IP access list 10\n    10 permit 192.168.10.0 255.255.255.0
-  Explanation: Standard ACL uses subnet mask '255.255.255.0' instead of inverse wildcard mask '0.0.0.255'. This causes the rule to match no valid host packets.
-
---------------------------------------------------------------------------------
-Scenario 5: Layer 3 OSPF Hello/Dead Timer Mismatch
---------------------------------------------------------------------------------
-Input Symptom: OSPF neighbor adjacency stuck in INIT state.
-Show Output:
-  R1: Timer intervals configured, Hello 10, Dead 40
-  R2: Timer intervals configured, Hello 30, Dead 120
-
-Rule Checker Findings:
-[FAIL] OSPF Timer Interval Agreement (Severity: HIGH)
-  Evidence: Timer discrepancy: Router A uses Hello 10s/Dead 40s vs Router B uses Hello 30s/Dead 120s.
-  Explanation: OSPF neighbors must agree on identical Hello and Dead timer intervals on a shared link to form adjacency.
-
-================================================================================
-Summary: Deterministic Rule Checker executed 5 test scenarios with 100% accuracy.
-================================================================================
+--- ACL denies DNS ---
+[FAIL] ACL Denies DNS (UDP/53) (CRITICAL)
+    evidence : 10 deny udp any host 10.50.1.10 eq domain (245 matches)
+    detail   : An access-list entry explicitly denies UDP/53, so name resolution to that server fails while IP connectivity still works.

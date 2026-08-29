@@ -38,7 +38,14 @@ def ensure_seeded():
     if _SEEDED:
         return
     _use_isolated_db()
+    reseed()
+    _SEEDED = True
+
+
+def reseed():
+    """Force a fresh seed of the isolated test database (used to restore state
+    after a test mutates reviews)."""
+    _use_isolated_db()
     from backend.seed_data import seed
     with contextlib.redirect_stdout(io.StringIO()):
         seed()
-    _SEEDED = True
