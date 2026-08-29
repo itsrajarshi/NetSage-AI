@@ -80,6 +80,12 @@ function initNavigation() {
 function switchView(viewName) {
   state.activeView = viewName;
 
+  // Auto-close mobile drawer if open
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (sidebar) sidebar.classList.remove('mobile-open');
+  if (backdrop) backdrop.classList.remove('active');
+
   // Update Nav
   document.querySelectorAll('.nav-item').forEach(item => {
     item.classList.toggle('active', item.getAttribute('data-view') === viewName);
@@ -507,6 +513,68 @@ function initEventListeners() {
   const btnVerify = document.getElementById('btn-execute-verification');
   if (btnVerify) {
     btnVerify.addEventListener('click', executeVerification);
+  }
+
+  // Mobile Drawer Navigation Toggle
+  const mobileBtn = document.getElementById('mobile-menu-btn');
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (mobileBtn && sidebar) {
+    mobileBtn.addEventListener('click', () => {
+      sidebar.classList.toggle('mobile-open');
+      if (backdrop) backdrop.classList.toggle('active');
+    });
+  }
+  if (backdrop) {
+    backdrop.addEventListener('click', () => {
+      sidebar.classList.remove('mobile-open');
+      backdrop.classList.remove('active');
+    });
+  }
+
+  // System Diagnostics & Health Telemetry Modal
+  const btnSystemStatus = document.getElementById('btn-system-status');
+  const modal = document.getElementById('system-health-modal');
+  const btnCloseModal = document.getElementById('btn-close-modal');
+  const btnPingHealth = document.getElementById('btn-ping-health');
+
+  if (btnSystemStatus && modal) {
+    btnSystemStatus.addEventListener('click', () => {
+      modal.classList.remove('hidden');
+      pingHealthEndpoint();
+    });
+  }
+  if (btnCloseModal && modal) {
+    btnCloseModal.addEventListener('click', () => modal.classList.add('hidden'));
+  }
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.add('hidden');
+    });
+  }
+  if (btnPingHealth) {
+    btnPingHealth.addEventListener('click', pingHealthEndpoint);
+  }
+}
+
+async function pingHealthEndpoint() {
+  const pingVal = document.getElementById('health-ping-val');
+  if (!pingVal) return;
+  pingVal.textContent = 'Pinging...';
+  const start = performance.now();
+  try {
+    const res = await fetch(`${API_BASE}/api/metrics`);
+    const duration = Math.round(performance.now() - start);
+    if (res.ok) {
+      pingVal.textContent = `${duration} ms · 100% HEALTHY`;
+      pingVal.style.color = '#059669';
+    } else {
+      pingVal.textContent = `${duration} ms · WARNING`;
+      pingVal.style.color = '#d97706';
+    }
+  } catch (err) {
+    pingVal.textContent = 'OFFLINE';
+    pingVal.style.color = '#ef4444';
   }
 }
 
