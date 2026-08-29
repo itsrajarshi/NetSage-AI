@@ -212,8 +212,11 @@ function renderMetrics(data) {
 
   if (totalReviewed === 0 || agreementRate === null || agreementRate === undefined) {
     if (agreementRateEl) agreementRateEl.textContent = 'N/A';
-  } else {
+  } else if (agreementRateEl) {
+    // Animate to the integer, then settle on the exact one-decimal value to
+    // stay consistent with the API and the requirements audit (e.g. 45.5%).
     animateValue(agreementRateEl, 0, Math.round(agreementRate), 800, '%');
+    setTimeout(() => { agreementRateEl.textContent = `${agreementRate}%`; }, 850);
   }
 
   animateValue(reviewedCasesEl, 0, totalReviewed, 600);
@@ -855,7 +858,7 @@ async function runStudioDiagnosis() {
 
     const confLevelEl = document.getElementById('studio-confidence');
     if (confLevelEl) {
-      confLevelEl.textContent = `${data.confidence.toUpperCase()} CONFIDENCE`;
+      confLevelEl.textContent = `${String(data.confidence).toUpperCase()} CONFIDENCE`;
       confLevelEl.style.color = confNum >= 75 ? '#059669' : confNum >= 50 ? '#d97706' : '#ef4444';
     }
 

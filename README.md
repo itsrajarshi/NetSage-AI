@@ -4,7 +4,7 @@
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Cisco Project](https://img.shields.io/badge/Cisco-Applied%20AI%20Internship-orange.svg)](docs/CISCO_REQUIREMENTS_AUDIT.md)
-[![Tests: 18 Passed](https://img.shields.io/badge/Tests-18%20Passed-brightgreen.svg)](backend/tests/)
+[![Tests: 19 Passed](https://img.shields.io/badge/Tests-19%20Passed-brightgreen.svg)](backend/tests/)
 
 > **In one sentence:** Create an AI-assisted troubleshooter for Packet Tracer lab problems that reads symptoms and show-command output, suggests likely causes and next steps, and always requires a human to review before accepting the fix.
 
@@ -112,7 +112,7 @@ Junior network engineers often know individual commands but struggle to connect 
 
 ## 🧪 Running Automated Tests
 
-Run the complete 18-test suite covering rule checker, dataset integrity, schema validation, and review storage:
+Run the complete 19-test suite covering rule checker, dataset integrity, schema validation, and review storage:
 
 ```bash
 python -m unittest discover -s backend/tests -p "test_*.py"
@@ -120,12 +120,14 @@ python -m unittest discover -s backend/tests -p "test_*.py"
 
 Output:
 ```text
-..................
+...................
 ----------------------------------------------------------------------
-Ran 18 tests in 0.063s
+Ran 19 tests in 0.26s
 
 OK
 ```
+
+> The suite auto-seeds a fresh SQLite database on first run, so it passes on a clean clone with no manual setup step.
 
 ---
 

@@ -8,9 +8,14 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from _helpers import ensure_seeded
 from backend.diagnosis_engine import DiagnosisEngine
 
 class TestDiagnosisEngine(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        ensure_seeded()
+
     def setUp(self):
         self.engine = DiagnosisEngine()
 

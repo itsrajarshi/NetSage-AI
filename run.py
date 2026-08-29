@@ -17,7 +17,7 @@ from backend.server import run_server, PORT
 def main():
     print("=" * 65)
     print("   NetSage AI -- Applied AI + Network Troubleshooting")
-    print("   Cisco Internship Project | Powered by Google Antigravity")
+    print("   Cisco Applied AI + Network Troubleshooting Internship Project")
     print("=" * 65)
 
     # Initialize DB & Seed if empty

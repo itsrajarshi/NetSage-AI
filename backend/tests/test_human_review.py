@@ -8,6 +8,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from _helpers import ensure_seeded
+
 from backend.db import (
     init_db, save_review, get_reviews_for_case,
     get_responsible_ai_logs, get_dashboard_metrics, get_case,
@@ -16,6 +18,10 @@ from backend.db import (
 from backend.diagnosis_engine import DiagnosisEngine
 
 class TestHumanReview(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        ensure_seeded()
+
     def setUp(self):
         init_db()
 

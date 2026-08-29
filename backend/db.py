@@ -8,11 +8,28 @@ import os
 import json
 from typing import List, Dict, Any, Optional
 
-DB_FILE = os.path.join(os.path.dirname(__file__), "netsage.db")
+DEFAULT_DB_FILE = os.path.join(os.path.dirname(__file__), "netsage.db")
+
+
+def get_db_file() -> str:
+    """
+    Resolve the SQLite path at call time.
+
+    Honors the NETSAGE_DB environment variable so tests (and alternate
+    deployments) can point at an isolated database instead of mutating the
+    shared development file.
+    """
+    return os.getenv("NETSAGE_DB") or DEFAULT_DB_FILE
+
+
+# Backwards-compatible alias; prefer get_db_file() for env-var awareness.
+DB_FILE = DEFAULT_DB_FILE
+
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(get_db_file())
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 def init_db():

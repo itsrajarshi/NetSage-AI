@@ -5,7 +5,7 @@
 
 ## 1. Current Repository Architecture & Baseline Assessment
 
-- **Repository Root:** `C:\Users\RAJ\.gemini\antigravity-ide\scratch`
+- **Repository Root:** `netsage-ai/` (local project workspace)
 - **Initial State:** Fresh project workspace; no legacy codebase or conflicting architecture found.
 - **System Environment:**
   - OS: Windows (PowerShell)
