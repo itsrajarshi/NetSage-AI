@@ -82,7 +82,7 @@ Junior network engineers often know individual commands but struggle to connect 
 ## 🚀 Getting Started & Local Setup
 
 ### Prerequisites
-- **Python 3.10+** (Python 3.12 recommended)
+- **Python 3.10+** (Python 3.12 recommended) — **standard library only, nothing to `pip install`**
 - Modern web browser (Chrome, Edge, Firefox, Safari)
 
 ### Installation & Launch
