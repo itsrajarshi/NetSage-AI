@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NetSage AI — Applied AI + Network Troubleshooting | Cisco Project</title>
   <meta name="description" content="Agentic AI troubleshooting system for Cisco Packet Tracer networks with deterministic rule checking and mandatory human review.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -15,8 +16,17 @@
   <div id="app-preloader" class="app-preloader">
     <div class="preloader-content">
       <div class="preloader-mark">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        <svg width="32" height="32" viewBox="0 0 64 64" fill="none">
+          <path d="M32 14L48 24V40L32 50L16 40V24L32 14Z" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" opacity="0.7"/>
+          <path d="M32 14V50M16 24L48 40M16 40L48 24" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.5"/>
+          <polygon points="32,22 42,32 32,42 22,32" fill="#00bceb"/>
+          <polygon points="32,25 39,32 32,39 25,32" fill="#ffffff"/>
+          <circle cx="32" cy="14" r="3" fill="#00bceb"/>
+          <circle cx="48" cy="24" r="3" fill="#ffffff"/>
+          <circle cx="48" cy="40" r="3" fill="#00bceb"/>
+          <circle cx="32" cy="50" r="3" fill="#ffffff"/>
+          <circle cx="16" cy="40" r="3" fill="#00bceb"/>
+          <circle cx="16" cy="24" r="3" fill="#ffffff"/>
         </svg>
       </div>
       <h2 class="preloader-title">NetSage <span class="serif-accent">AI</span></h2>
@@ -46,8 +56,16 @@
     <aside class="sidebar">
       <div class="brand-container">
         <div class="brand-mark">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          <svg width="22" height="22" viewBox="0 0 64 64" fill="none">
+            <path d="M32 14L48 24V40L32 50L16 40V24L32 14Z" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" opacity="0.8"/>
+            <polygon points="32,22 42,32 32,42 22,32" fill="#00bceb"/>
+            <polygon points="32,25 39,32 32,39 25,32" fill="#ffffff"/>
+            <circle cx="32" cy="14" r="3" fill="#00bceb"/>
+            <circle cx="48" cy="24" r="3" fill="#ffffff"/>
+            <circle cx="48" cy="40" r="3" fill="#00bceb"/>
+            <circle cx="32" cy="50" r="3" fill="#ffffff"/>
+            <circle cx="16" cy="40" r="3" fill="#00bceb"/>
+            <circle cx="16" cy="24" r="3" fill="#ffffff"/>
           </svg>
         </div>
         <div class="brand-text">
@@ -106,27 +124,83 @@
 
       <!-- VIEW 1: DASHBOARD -->
       <section id="view-dashboard" class="view-panel active">
-        <!-- KPI Metrics Grid (Aurchestrix Stats Style) -->
+        <!-- Dashboard Hero Banner with Network Icon -->
+        <div class="dashboard-hero-banner mb-4">
+          <div class="hero-icon-box">
+            <svg width="36" height="36" viewBox="0 0 64 64" fill="none">
+              <rect x="6" y="6" width="52" height="52" rx="14" fill="#0f0e17" stroke="url(#heroGrad)" stroke-width="2"/>
+              <defs>
+                <linearGradient id="heroGrad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#5b5bd6"/>
+                  <stop offset="100%" stop-color="#00bceb"/>
+                </linearGradient>
+              </defs>
+              <path d="M32 16L46 25V39L32 48L18 39V25L32 16Z" stroke="#00bceb" stroke-width="1.8" stroke-linejoin="round"/>
+              <polygon points="32,24 40,32 32,40 24,32" fill="#5b5bd6"/>
+              <circle cx="32" cy="32" r="3" fill="#ffffff"/>
+              <circle cx="32" cy="16" r="2.5" fill="#00bceb"/>
+              <circle cx="46" cy="25" r="2.5" fill="#5b5bd6"/>
+              <circle cx="46" cy="39" r="2.5" fill="#00bceb"/>
+              <circle cx="32" cy="48" r="2.5" fill="#5b5bd6"/>
+              <circle cx="18" cy="39" r="2.5" fill="#00bceb"/>
+              <circle cx="18" cy="25" r="2.5" fill="#5b5bd6"/>
+            </svg>
+          </div>
+          <div class="hero-text-content">
+            <div class="hero-badge-row">
+              <span class="badge badge-primary">Cisco Applied AI Operations Console</span>
+              <span class="mono-tag" style="font-size: 0.7rem;">Packet Tracer Engine v2.0</span>
+            </div>
+            <h3>Network Incident Copilot <span class="serif-accent">&amp; Human Safety Gate.</span></h3>
+            <p>Assisting network engineers with grounded evidence analysis, deterministic rule validation, and human-in-the-loop remediation.</p>
+          </div>
+        </div>
+
+        <!-- KPI Metrics Grid (Aurchestrix Stats Style with Visual Icons) -->
         <div class="metrics-grid">
           <div class="metric-stat-card">
+            <div class="metric-card-top">
+              <div class="metric-icon-circle blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              </div>
+              <span class="mono-tag">KB DATASET</span>
+            </div>
             <div class="metric-value" id="kpi-total-cases">39</div>
             <div class="metric-header">TOTAL LAB CASES</div>
             <p class="metric-desc">Curated troubleshooting scenarios across 8 networking domains.</p>
           </div>
 
           <div class="metric-stat-card">
+            <div class="metric-card-top">
+              <div class="metric-icon-circle green">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+              </div>
+              <span class="mono-tag">CONCORDANCE</span>
+            </div>
             <div class="metric-value" id="kpi-agreement-rate">--</div>
             <div class="metric-header">AI/HUMAN AGREEMENT RATE</div>
             <p class="metric-desc">Accepted Reviews / Total Reviews (Explicit human concordance).</p>
           </div>
 
           <div class="metric-stat-card">
+            <div class="metric-card-top">
+              <div class="metric-icon-circle purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </div>
+              <span class="mono-tag">AUDIT TRAIL</span>
+            </div>
             <div class="metric-value" id="kpi-reviewed-cases">0</div>
             <div class="metric-header">TOTAL REVIEWS LOGGED</div>
             <p class="metric-desc">Audit trail count across [ACCEPT], [EDIT], and [REJECT] decisions.</p>
           </div>
 
           <div class="metric-stat-card">
+            <div class="metric-card-top">
+              <div class="metric-icon-circle amber">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <span class="mono-tag">SAFETY LOG</span>
+            </div>
             <div class="metric-value" id="kpi-responsible-count">5</div>
             <div class="metric-header">AI CORRECTIONS &amp; OVERRIDES</div>
             <p class="metric-desc">Audited failure modes where human expert oversight corrected AI.</p>
