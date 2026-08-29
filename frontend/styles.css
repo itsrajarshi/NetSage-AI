@@ -1973,14 +1973,40 @@ textarea.form-control {
   align-items: center;
 }
 
-/* Responsive Overhaul for Laptop, PC, Tablet, and Mobile */
+/* ==========================================================================
+   Multi-Device Responsive System (Dynamic Screens, Laptops, Tablets, Mobiles)
+   ========================================================================== */
+
+/* Touch Ergonomics & Safe Areas */
+html, body {
+  min-height: 100vh;
+  min-height: 100dvh;
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+/* Wide Screens (> 1440px): Centered Ergonomics */
+@media (min-width: 1440px) {
+  .view-panel {
+    max-width: 1440px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+/* Laptops & Tablets (max-width: 1024px) */
 @media (max-width: 1024px) {
   .topbar {
-    padding: 18px 24px;
+    padding: 16px 24px;
   }
 
   .view-panel {
-    padding: 24px 24px 48px;
+    padding: 24px 20px 48px;
+  }
+
+  .cases-grid-layout {
+    grid-template-columns: 320px 1fr;
+    gap: 16px;
   }
 
   .studio-grid {
@@ -1996,35 +2022,48 @@ textarea.form-control {
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
 }
 
+/* Mobile & Portrait Tablets (max-width: 768px) */
 @media (max-width: 768px) {
   .mobile-menu-btn {
     display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
   }
 
-  /* Sidebar transforms into mobile drawer */
+  /* Sidebar Drawer */
   .sidebar {
     position: fixed;
     top: 0;
-    left: -280px;
+    left: -290px;
     bottom: 0;
-    width: 270px;
+    width: 280px;
     height: 100vh;
+    height: 100dvh;
     z-index: 100;
-    box-shadow: 6px 0 30px rgba(15, 14, 23, 0.25);
+    box-shadow: 8px 0 32px rgba(15, 14, 23, 0.28);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   .sidebar.mobile-open {
-    transform: translateX(280px);
+    transform: translateX(290px);
   }
 
   .sidebar-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(15, 14, 23, 0.55);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+    background: rgba(15, 14, 23, 0.6);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
     z-index: 90;
     display: none;
     opacity: 0;
@@ -2037,12 +2076,12 @@ textarea.form-control {
   }
 
   .topbar {
-    padding: 14px 18px;
-    flex-wrap: wrap;
+    padding: 12px 16px;
+    gap: 10px;
   }
 
   .topbar-title-group h2 {
-    font-size: 1.35rem;
+    font-size: 1.25rem;
   }
 
   .topbar-title-group p {
@@ -2051,26 +2090,50 @@ textarea.form-control {
 
   .topbar-actions {
     margin-left: auto;
+    display: flex;
+    gap: 8px;
   }
 
   .view-panel {
-    padding: 18px 16px 40px;
+    padding: 16px 12px 40px;
   }
 
   .dashboard-hero-banner {
     flex-direction: column;
     align-items: flex-start;
-    padding: 20px;
-    gap: 16px;
+    padding: 18px 16px;
+    gap: 14px;
   }
 
   .hero-text-content h3 {
-    font-size: 1.25rem;
+    font-size: 1.2rem;
+  }
+
+  .hero-badge-pill {
+    font-size: 0.68rem;
   }
 
   .metrics-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
+  }
+
+  .metric-card {
+    padding: 18px 16px;
+  }
+
+  /* Case Explorer Mobile Adaptation */
+  .cases-grid-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .cases-list-panel {
+    max-height: 380px;
+  }
+
+  .case-detail-panel {
+    padding: 20px 16px;
   }
 
   .filter-bar {
@@ -2083,18 +2146,56 @@ textarea.form-control {
     width: 100%;
   }
 
-  .gate-actions {
+  .filter-selects {
     flex-direction: column;
+    width: 100%;
     gap: 8px;
+  }
+
+  /* Diagnosis Studio Mobile Adaptation */
+  .studio-header-card {
+    padding: 18px 16px;
   }
 
   .studio-header-main {
     flex-direction: column;
-    gap: 16px;
+    gap: 14px;
+  }
+
+  .studio-title-row h2 {
+    font-size: 1.18rem;
   }
 
   .studio-case-selector-col {
     width: 100%;
+    min-width: unset;
+  }
+
+  /* Investigation Pipeline Swipeable Carousel */
+  .pipeline-tracker-card {
+    padding: 14px 16px;
+  }
+
+  .pipeline-steps-grid {
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+
+  .pipeline-step-item {
+    scroll-snap-align: start;
+    padding: 6px 10px;
+  }
+
+  .pipeline-step-item .step-label {
+    font-size: 0.68rem;
+  }
+
+  .incident-symptom-box {
+    padding: 12px 14px;
+    font-size: 0.88rem;
   }
 
   .incident-meta-grid {
@@ -2102,18 +2203,37 @@ textarea.form-control {
     gap: 8px;
   }
 
+  .gate-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .gate-actions button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  /* Tables and Data Overflows */
   .data-table-container {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-inner);
+    box-shadow: inset -6px 0 10px -6px rgba(0, 0, 0, 0.1);
   }
 
   .data-table {
-    min-width: 600px;
+    min-width: 580px;
+  }
+
+  .modal-card {
+    margin: 12px;
+    max-height: 90vh;
+    overflow-y: auto;
   }
 
   .footer-inner {
     flex-direction: column;
-    gap: 28px;
+    gap: 24px;
   }
 
   .footer-info-col {
@@ -2123,7 +2243,48 @@ textarea.form-control {
 
   .footer-bottom-bar {
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
     align-items: flex-start;
+  }
+}
+
+/* Small Screens & Foldables (max-width: 480px) */
+@media (max-width: 480px) {
+  .topbar-title-group h2 {
+    font-size: 1.1rem;
+  }
+
+  .brand-title {
+    font-size: 1.15rem;
+  }
+
+  .card {
+    padding: 16px 14px;
+    border-radius: var(--radius-inner);
+  }
+
+  .card-header h3 {
+    font-size: 1.05rem;
+  }
+
+  .terminal-code-body {
+    padding: 12px;
+    font-size: 0.74rem;
+    max-height: 220px;
+  }
+
+  .root-cause-display {
+    font-size: 0.98rem;
+    padding: 12px 14px;
+  }
+
+  .btn {
+    padding: 10px 14px;
+    font-size: 0.8rem;
+  }
+
+  .social-pill {
+    padding: 6px 10px;
+    font-size: 0.68rem;
   }
 }
