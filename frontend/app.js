@@ -115,10 +115,11 @@ function switchView(viewName) {
     fetchMetrics();
   } else if (viewName === 'responsible') {
     fetchResponsibleAiLogs();
+  } else if (viewName === 'studio') {
+    if (state.cases && state.cases.length > 0) {
+      selectCaseForStudio(state.selectedCase || state.cases[0]);
+    }
   }
-
-  // Smooth scroll to top on mobile view transition
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function loadInitialData() {
@@ -337,16 +338,6 @@ function selectCaseForExplorer(caseItem) {
     selectCaseForStudio(caseItem);
     switchView('studio');
   };
-
-  // Toggle to detail view on mobile screens
-  if (window.innerWidth <= 768) {
-    const btnToggleDetail = document.getElementById('btn-toggle-detail');
-    if (btnToggleDetail) btnToggleDetail.click();
-    const detailPanel = document.getElementById('explorer-detail-panel');
-    if (detailPanel) {
-      detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }
 }
 
 function selectCaseForStudio(caseItem) {
@@ -749,45 +740,6 @@ function initEventListeners() {
   }
   if (btnPingHealth) {
     btnPingHealth.addEventListener('click', pingHealthEndpoint);
-  }
-
-  // Evidence Deck Sub-Tab Switching
-  const deckTabs = document.querySelectorAll('.deck-tab');
-  deckTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const targetTab = tab.getAttribute('data-tab');
-      deckTabs.forEach(t => t.classList.toggle('active', t === tab));
-      
-      const paneEvidence = document.getElementById('pane-evidence');
-      const paneTopology = document.getElementById('pane-topology');
-      const paneScope = document.getElementById('pane-scope');
-
-      if (paneEvidence) paneEvidence.classList.toggle('hidden', targetTab !== 'evidence');
-      if (paneTopology) paneTopology.classList.toggle('hidden', targetTab !== 'topology');
-      if (paneScope) paneScope.classList.toggle('hidden', targetTab !== 'scope');
-    });
-  });
-
-  // Explorer Mobile Segmented Toggle
-  const btnToggleList = document.getElementById('btn-toggle-list');
-  const btnToggleDetail = document.getElementById('btn-toggle-detail');
-  const listContainer = document.getElementById('cases-list-container');
-  const detailPanel = document.getElementById('explorer-detail-panel');
-
-  if (btnToggleList && btnToggleDetail) {
-    btnToggleList.addEventListener('click', () => {
-      btnToggleList.classList.add('active');
-      btnToggleDetail.classList.remove('active');
-      if (listContainer) listContainer.style.display = 'flex';
-      if (detailPanel) detailPanel.style.display = 'none';
-    });
-
-    btnToggleDetail.addEventListener('click', () => {
-      btnToggleDetail.classList.add('active');
-      btnToggleList.classList.remove('active');
-      if (listContainer) listContainer.style.display = 'none';
-      if (detailPanel) detailPanel.style.display = 'block';
-    });
   }
 
   // Human Override Form Submission
