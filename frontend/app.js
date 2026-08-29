@@ -116,6 +116,9 @@ function switchView(viewName) {
   } else if (viewName === 'responsible') {
     fetchResponsibleAiLogs();
   }
+
+  // Smooth scroll to top on mobile view transition
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function loadInitialData() {
@@ -334,6 +337,14 @@ function selectCaseForExplorer(caseItem) {
     selectCaseForStudio(caseItem);
     switchView('studio');
   };
+
+  // Scroll into view on mobile screens
+  if (window.innerWidth <= 768) {
+    const detailPanel = document.getElementById('explorer-detail-panel');
+    if (detailPanel) {
+      detailPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
 }
 
 function selectCaseForStudio(caseItem) {
