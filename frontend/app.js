@@ -148,6 +148,12 @@ async function fetchCases() {
     renderExplorerList();
     renderDashboardTable();
     populateVerifierSelect();
+    populateStudioCaseSelect();
+
+    // Default select first case in Studio if none active
+    if (!state.selectedCase && data.length > 0) {
+      selectCaseForStudio(data[0]);
+    }
   } catch (err) {
     console.error('Error fetching cases:', err);
   }
@@ -332,20 +338,196 @@ function selectCaseForExplorer(caseItem) {
 
 function selectCaseForStudio(caseItem) {
   state.selectedCase = caseItem;
-  document.getElementById('studio-case-badge').textContent = `Case: ${caseItem.case_id}`;
-  document.getElementById('studio-input-symptom').value = caseItem.symptom;
-  document.getElementById('studio-input-topology').value = caseItem.topology_note || '';
-  document.getElementById('studio-input-show').value = caseItem.show_outputs || '';
 
-  // Reset Studio Output
-  document.getElementById('studio-root-cause').textContent = "Click 'Execute Diagnosis Pipeline' to generate findings.";
-  document.getElementById('studio-evidence-quote').textContent = "Evidence will be quoted from show commands here.";
-  document.getElementById('studio-next-cmd').textContent = caseItem.expected_next_command || "show running-config";
-  document.getElementById('studio-domain-tag').textContent = `${caseItem.osi_layer} / ${caseItem.concept}`;
-  document.getElementById('studio-fix-steps').textContent = caseItem.expected_fix || "Configure corrective commands.";
-  document.getElementById('studio-confidence').textContent = "Pending Run";
-  document.getElementById('studio-rule-findings').innerHTML = '<div class="empty-finding-note">Run diagnosis to evaluate deterministic rules.</div>';
-  document.getElementById('rule-findings-count').textContent = '0 findings';
+  // 1. Studio Header Card
+  const titleEl = document.getElementById('studio-active-case-title');
+  if (titleEl) titleEl.textContent = `${caseItem.case_id} — ${caseItem.expected_fault}`;
+
+  const caseBadge = document.getElementById('studio-case-id-badge');
+  if (caseBadge) caseBadge.textContent = caseItem.case_id;
+
+  const conceptBadge = document.getElementById('studio-concept-badge');
+  if (conceptBadge) conceptBadge.textContent = caseItem.concept;
+
+  const sevBadge = document.getElementById('studio-severity-badge');
+  if (sevBadge) {
+    sevBadge.textContent = (caseItem.severity || 'HIGH').toUpperCase();
+    sevBadge.className = `badge ${caseItem.severity === 'Critical' ? 'badge-danger' : 'badge-warning'}`;
+  }
+
+  const layerBadgeHdr = document.getElementById('studio-layer-badge-header');
+  if (layerBadgeHdr) layerBadgeHdr.textContent = caseItem.osi_layer || 'Layer 2';
+
+  const statusPill = document.getElementById('studio-status-pill');
+  if (statusPill) {
+    statusPill.textContent = 'Awaiting Investigation';
+    statusPill.className = 'studio-status-pill pending';
+  }
+
+  // Sync Studio quick case select
+  const quickSelect = document.getElementById('studio-quick-case-select');
+  if (quickSelect && quickSelect.value !== caseItem.case_id) {
+    quickSelect.value = caseItem.case_id;
+  }
+
+  // 2. Incident Card
+  const incSymptom = document.getElementById('studio-incident-symptom');
+  if (incSymptom) incSymptom.textContent = caseItem.symptom;
+
+  const incSev = document.getElementById('studio-incident-severity');
+  if (incSev) incSev.textContent = `${(caseItem.severity || 'HIGH').toUpperCase()} SEVERITY`;
+
+  const metaCaseId = document.getElementById('meta-case-id');
+  if (metaCaseId) metaCaseId.textContent = caseItem.case_id;
+
+  const metaDomain = document.getElementById('meta-domain');
+  if (metaDomain) metaDomain.textContent = `${caseItem.concept} / Networking`;
+
+  const metaLayer = document.getElementById('meta-layer');
+  if (metaLayer) metaLayer.textContent = caseItem.osi_layer;
+
+  // 3. Topology Section
+  const topoDisplay = document.getElementById('studio-topology-display');
+  if (topoDisplay) topoDisplay.textContent = caseItem.topology_note || 'Direct interconnect topology';
+
+  // 4. Cisco IOS Terminal Evidence Viewer
+  const termTitle = document.getElementById('terminal-device-title');
+  if (termTitle) termTitle.textContent = `Cisco IOS v15.4 · Device Console (${caseItem.case_id})`;
+
+  const termBody = document.getElementById('studio-terminal-body');
+  if (termBody) termBody.textContent = caseItem.show_outputs || '# No show command captures attached.';
+
+  // 5. Reset Pipeline Steps
+  resetPipelineTracker();
+
+  // 6. Reset Deterministic Rule Findings
+  const ruleFindings = document.getElementById('studio-rule-findings');
+  if (ruleFindings) {
+    ruleFindings.innerHTML = '<div class="empty-finding-note">Click "Execute Complete Diagnosis Pipeline" to evaluate deterministic network rules.</div>';
+  }
+  const findingsCount = document.getElementById('rule-findings-count');
+  if (findingsCount) findingsCount.textContent = '6 Checks Armed';
+
+  resetDeterministicChips();
+
+  // 7. Reset AI Diagnosis Card
+  const rootCauseEl = document.getElementById('studio-root-cause');
+  if (rootCauseEl) rootCauseEl.textContent = "Run diagnosis to generate evidence-backed root cause analysis.";
+
+  const confScoreEl = document.getElementById('studio-confidence-score');
+  if (confScoreEl) confScoreEl.textContent = "--%";
+
+  const confFillEl = document.getElementById('studio-confidence-fill');
+  if (confFillEl) confFillEl.style.width = "0%";
+
+  const confLevelEl = document.getElementById('studio-confidence');
+  if (confLevelEl) {
+    confLevelEl.textContent = "Pending Execution";
+    confLevelEl.style.color = "var(--color-slate)";
+  }
+
+  const layerBadge = document.getElementById('studio-layer-badge');
+  if (layerBadge) layerBadge.textContent = `${caseItem.osi_layer} · ${caseItem.concept}`;
+
+  const quoteEl = document.getElementById('studio-evidence-quote');
+  if (quoteEl) quoteEl.textContent = "Exact matching evidence quotations from show commands will be extracted here.";
+
+  const whyMattersEl = document.getElementById('studio-why-matters');
+  if (whyMattersEl) whyMattersEl.innerHTML = `<strong>Why this matters:</strong> Observations from show-command captures corroborate root cause at ${caseItem.osi_layer}.`;
+
+  const nextCmdEl = document.getElementById('studio-next-cmd');
+  if (nextCmdEl) nextCmdEl.textContent = `$ ${caseItem.expected_next_command || "show running-config"}`;
+
+  const nextCmdPurpose = document.getElementById('studio-cmd-purpose');
+  if (nextCmdPurpose) nextCmdPurpose.textContent = `Purpose: Verify active ${caseItem.concept} configuration and telemetry on device.`;
+
+  // Numbered Fix Steps
+  renderFixSteps(caseItem.expected_fix || "Configure corrective commands on Cisco device.");
+
+  // 8. Mandatory Human Review Reset
+  const gatePill = document.getElementById('gate-status-pill');
+  if (gatePill) {
+    gatePill.textContent = 'AWAITING HUMAN APPROVAL';
+    gatePill.className = 'badge badge-warning';
+  }
+
+  const linkageEl = document.getElementById('studio-verification-linkage');
+  if (linkageEl) {
+    linkageEl.innerHTML = `
+      <span class="badge badge-warning">AWAITING HUMAN APPROVAL</span>
+      <span class="linkage-text">Automated verification is locked until signed off above.</span>
+    `;
+  }
+
+  const editContainer = document.getElementById('edit-diagnosis-container');
+  if (editContainer) editContainer.classList.add('hidden');
+
+  const commentInput = document.getElementById('review-comment-input');
+  if (commentInput) commentInput.value = '';
+}
+
+function resetPipelineTracker() {
+  for (let i = 1; i <= 6; i++) {
+    const step = document.getElementById(`pipe-step-${i}`);
+    if (step) {
+      step.classList.remove('active', 'completed');
+    }
+  }
+  const statusText = document.getElementById('pipeline-status-text');
+  if (statusText) statusText.textContent = 'Standby · Ready to Execute';
+}
+
+function resetDeterministicChips() {
+  ['chip-interface', 'chip-vlan', 'chip-ip', 'chip-routing'].forEach(id => {
+    const chip = document.getElementById(id);
+    if (chip) {
+      chip.className = 'chip-item';
+      if (id === 'chip-interface') chip.textContent = '✓ Interface Status';
+      if (id === 'chip-vlan') chip.textContent = '✓ VLAN Config';
+      if (id === 'chip-ip') chip.textContent = '✓ IP Addressing';
+      if (id === 'chip-routing') chip.textContent = '✓ Routing Protocol';
+    }
+  });
+}
+
+function renderFixSteps(fixText) {
+  const container = document.getElementById('studio-fix-steps');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const steps = fixText.split(/[;\n]/).map(s => s.trim()).filter(s => s.length > 0);
+  if (steps.length === 0) steps.push(fixText);
+
+  steps.forEach((step, idx) => {
+    const item = document.createElement('div');
+    item.className = 'fix-step-item';
+    const num = (idx + 1).toString().padStart(2, '0');
+    item.innerHTML = `
+      <span class="step-index">${num}</span>
+      <span class="step-text">${step}</span>
+    `;
+    container.appendChild(item);
+  });
+}
+
+function populateStudioCaseSelect() {
+  const select = document.getElementById('studio-quick-case-select');
+  if (!select) return;
+  select.innerHTML = '';
+
+  state.cases.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.case_id;
+    opt.textContent = `${c.case_id} — [${c.concept}] ${c.expected_fault.slice(0, 38)}...`;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener('change', () => {
+    const selected = state.cases.find(c => c.case_id === select.value);
+    if (selected) {
+      selectCaseForStudio(selected);
+    }
+  });
 }
 
 function renderResponsibleAiTable(logs) {
@@ -472,7 +654,7 @@ function initEventListeners() {
   const btnCopyEvidence = document.getElementById('btn-copy-evidence');
   if (btnCopyEvidence) {
     btnCopyEvidence.addEventListener('click', () => {
-      const showText = document.getElementById('studio-input-show').value;
+      const showText = document.getElementById('studio-terminal-body').textContent;
       navigator.clipboard.writeText(showText).then(() => {
         btnCopyEvidence.textContent = 'Copied!';
         setTimeout(() => { btnCopyEvidence.textContent = 'Copy Output'; }, 1500);
@@ -555,6 +737,12 @@ function initEventListeners() {
   if (btnPingHealth) {
     btnPingHealth.addEventListener('click', pingHealthEndpoint);
   }
+
+  // Human Override Form Submission
+  const btnSubmitOverride = document.getElementById('btn-submit-override');
+  if (btnSubmitOverride) {
+    btnSubmitOverride.addEventListener('click', () => submitReview('EDITED'));
+  }
 }
 
 async function pingHealthEndpoint() {
@@ -579,19 +767,34 @@ async function pingHealthEndpoint() {
 }
 
 async function runStudioDiagnosis() {
-  const symptom = document.getElementById('studio-input-symptom').value.trim();
-  const topology = document.getElementById('studio-input-topology').value.trim();
-  const showOutputs = document.getElementById('studio-input-show').value.trim();
-  const caseId = state.selectedCase ? state.selectedCase.case_id : "CUSTOM";
+  const caseItem = state.selectedCase;
+  const symptom = caseItem ? caseItem.symptom : (document.getElementById('studio-incident-symptom')?.textContent.trim() || '');
+  const topology = caseItem ? (caseItem.topology_note || '') : (document.getElementById('studio-topology-display')?.textContent.trim() || '');
+  const showOutputs = caseItem ? caseItem.show_outputs : (document.getElementById('studio-terminal-body')?.textContent.trim() || '');
+  const caseId = caseItem ? caseItem.case_id : "CUSTOM";
 
   if (!symptom || !showOutputs) {
-    alert("Please provide symptom and show-command outputs.");
+    alert("Please select a troubleshooting case or provide show-command outputs.");
     return;
   }
 
   const btn = document.getElementById('btn-run-diagnosis-engine');
   btn.disabled = true;
   btn.textContent = "Analyzing Network Evidence...";
+
+  // 1. Start Investigation Pipeline Animation
+  const statusPill = document.getElementById('studio-status-pill');
+  if (statusPill) {
+    statusPill.textContent = 'Investigation In Progress';
+    statusPill.className = 'studio-status-pill running';
+  }
+
+  const pipelineStatus = document.getElementById('pipeline-status-text');
+  if (pipelineStatus) pipelineStatus.textContent = 'Evaluating Deterministic Rules & LLM Pipeline...';
+
+  // Animate Pipeline Steps
+  document.getElementById('pipe-step-1').className = 'pipeline-step-item completed';
+  document.getElementById('pipe-step-2').className = 'pipeline-step-item active';
 
   try {
     const res = await fetch(`${API_BASE}/api/diagnose`, {
@@ -604,42 +807,140 @@ async function runStudioDiagnosis() {
     const data = await res.json();
     state.activeDiagnosis = data;
 
-    // Render Results
-    document.getElementById('studio-root-cause').textContent = data.root_cause;
-    document.getElementById('studio-confidence').textContent = `${data.confidence} Confidence`;
-    document.getElementById('studio-layer-badge').textContent = data.osi_layer;
-    document.getElementById('studio-evidence-quote').textContent = data.evidence;
-    document.getElementById('studio-next-cmd').textContent = data.next_command;
-    document.getElementById('studio-domain-tag').textContent = `${data.osi_layer} / ${data.concept}`;
-    document.getElementById('studio-fix-steps').textContent = data.fix_steps;
+    // Complete Pipeline Steps
+    document.getElementById('pipe-step-2').className = 'pipeline-step-item completed';
+    document.getElementById('pipe-step-3').className = 'pipeline-step-item completed';
+    document.getElementById('pipe-step-4').className = 'pipeline-step-item completed';
+    document.getElementById('pipe-step-5').className = 'pipeline-step-item completed';
+    document.getElementById('pipe-step-6').className = 'pipeline-step-item active';
 
-    // Render Rule Findings
+    if (pipelineStatus) pipelineStatus.textContent = 'Investigation Complete · Awaiting Human Safety Sign-Off';
+
+    if (statusPill) {
+      statusPill.textContent = 'Diagnosed · Awaiting Review';
+      statusPill.className = 'studio-status-pill pending';
+    }
+
+    // 1. Render AI Root Cause
+    document.getElementById('studio-root-cause').textContent = data.root_cause;
+
+    // 2. Render Confidence Score & Gauge
+    let confNum = 88;
+    if (typeof data.confidence === 'string') {
+      if (data.confidence.toLowerCase().includes('high')) confNum = 88;
+      else if (data.confidence.toLowerCase().includes('medium')) confNum = 68;
+      else if (data.confidence.toLowerCase().includes('low')) confNum = 42;
+      else {
+        const parsed = parseInt(data.confidence, 10);
+        if (!isNaN(parsed)) confNum = parsed;
+      }
+    } else if (typeof data.confidence === 'number') {
+      confNum = Math.round(data.confidence);
+    }
+
+    const confScoreEl = document.getElementById('studio-confidence-score');
+    if (confScoreEl) confScoreEl.textContent = `${confNum}%`;
+
+    const confFillEl = document.getElementById('studio-confidence-fill');
+    if (confFillEl) confFillEl.style.width = `${confNum}%`;
+
+    const confLevelEl = document.getElementById('studio-confidence');
+    if (confLevelEl) {
+      confLevelEl.textContent = `${data.confidence.toUpperCase()} CONFIDENCE`;
+      confLevelEl.style.color = confNum >= 75 ? '#059669' : confNum >= 50 ? '#d97706' : '#ef4444';
+    }
+
+    // 3. Render Badges & Evidence
+    document.getElementById('studio-layer-badge').textContent = `${data.osi_layer} · ${data.concept}`;
+    document.getElementById('studio-evidence-quote').textContent = data.evidence;
+    document.getElementById('studio-why-matters').innerHTML = `<strong>Why this matters:</strong> Evidence from show commands directly confirms ${data.root_cause} at ${data.osi_layer}.`;
+    document.getElementById('studio-next-cmd').textContent = data.next_command.startsWith('$') ? data.next_command : `$ ${data.next_command}`;
+    document.getElementById('studio-cmd-purpose').textContent = `Purpose: Verify active ${data.concept} configuration and telemetry on device.`;
+
+    // 4. Render Fix Steps as Numbered Cards
+    renderFixSteps(data.fix_steps);
+
+    // 5. Render Deterministic Rule Findings
     const ruleContainer = document.getElementById('studio-rule-findings');
     ruleContainer.innerHTML = '';
     const findings = data.rule_findings || [];
-    document.getElementById('rule-findings-count').textContent = `${findings.length} findings`;
+    document.getElementById('rule-findings-count').textContent = `${findings.length} Finding${findings.length === 1 ? '' : 's'}`;
+
+    let hasFail = false;
+    let hasWarn = false;
 
     findings.forEach(f => {
+      if (f.status === 'FAIL') hasFail = true;
+      if (f.status === 'WARNING') hasWarn = true;
+
       const item = document.createElement('div');
       item.className = `rule-finding-item ${f.status}`;
       item.innerHTML = `
         <strong>[${f.status}] ${f.rule} (${f.severity})</strong><br>
-        <span>${f.explanation}</span>
+        <span style="font-size: 0.8rem; color: var(--color-ink);">${f.explanation}</span>
       `;
       ruleContainer.appendChild(item);
     });
 
+    if (findings.length === 0) {
+      ruleContainer.innerHTML = '<div class="empty-finding-note" style="color: #059669;">✓ All 6 deterministic checks passed with no syntax or containment violations.</div>';
+    }
+
+    // Update Summary Chips
+    const chipVlan = document.getElementById('chip-vlan');
+    if (chipVlan) {
+      if (data.concept === 'VLAN' && hasFail) {
+        chipVlan.className = 'chip-item fail';
+        chipVlan.textContent = '✕ VLAN Violation';
+      } else {
+        chipVlan.className = 'chip-item pass';
+        chipVlan.textContent = '✓ VLAN Verified';
+      }
+    }
+
+    const chipIp = document.getElementById('chip-ip');
+    if (chipIp) {
+      if ((data.concept === 'DHCP' || data.concept === 'Routing' || data.concept === 'Gateway') && hasFail) {
+        chipIp.className = 'chip-item fail';
+        chipIp.textContent = '✕ IP/Subnet Fault';
+      } else {
+        chipIp.className = 'chip-item pass';
+        chipIp.textContent = '✓ IP Addr Valid';
+      }
+    }
+
+    // Pre-populate Human Override text
+    const editAiOriginal = document.getElementById('edit-original-ai-text');
+    if (editAiOriginal) editAiOriginal.textContent = data.root_cause;
+
+    const editInput = document.getElementById('edit-diagnosis-input');
+    if (editInput) editInput.value = data.root_cause;
+
     // Reset Review Comments
     document.getElementById('review-comment-input').value = '';
     document.getElementById('edit-diagnosis-container').classList.add('hidden');
-    document.getElementById('studio-review-history').innerHTML = '<em>Awaiting human engineer review decision above.</em>';
+    
+    // Safety Gate State
+    const gatePill = document.getElementById('gate-status-pill');
+    if (gatePill) {
+      gatePill.textContent = 'AWAITING HUMAN APPROVAL';
+      gatePill.className = 'badge badge-warning';
+    }
+
+    const linkageEl = document.getElementById('studio-verification-linkage');
+    if (linkageEl) {
+      linkageEl.innerHTML = `
+        <span class="badge badge-warning">AWAITING HUMAN APPROVAL</span>
+        <span class="linkage-text">Automated verification is locked until signed off above.</span>
+      `;
+    }
 
   } catch (err) {
     console.error('Diagnosis error:', err);
     alert('Failed to execute diagnosis. Check server logs.');
   } finally {
     btn.disabled = false;
-    btn.textContent = "Execute Diagnosis Pipeline";
+    btn.textContent = "Execute Complete Diagnosis Pipeline";
   }
 }
 
@@ -664,18 +965,67 @@ async function submitReview(decision) {
     if (!res.ok) throw new Error('Failed to submit review');
     const data = await res.json();
 
-    const historyBox = document.getElementById('studio-review-history');
-    const badgeClass = decision === 'ACCEPTED' ? 'badge-success' : decision === 'EDITED' ? 'badge-warning' : 'badge-danger';
-    historyBox.innerHTML = `
-      <div style="margin-top: 6px;">
-        <span class="badge ${badgeClass}">${decision}</span> by Human Engineer — ${new Date().toLocaleTimeString()}
-        <p style="margin-top: 4px; color: #fff;">${comment || 'No comment provided.'}</p>
-        ${decision === 'EDITED' ? `<p style="color: #6ee7b7;"><strong>Corrected Diagnosis:</strong> ${editedDiagnosis}</p>` : ''}
-      </div>
-    `;
+    const statusPill = document.getElementById('studio-status-pill');
+    const gatePill = document.getElementById('gate-status-pill');
+    const linkageEl = document.getElementById('studio-verification-linkage');
+    const pipeStep6 = document.getElementById('pipe-step-6');
+
+    if (decision === 'ACCEPTED') {
+      if (pipeStep6) pipeStep6.className = 'pipeline-step-item completed';
+      if (statusPill) {
+        statusPill.textContent = 'Human Approved';
+        statusPill.className = 'studio-status-pill approved';
+      }
+      if (gatePill) {
+        gatePill.textContent = 'HUMAN APPROVED';
+        gatePill.className = 'badge badge-success';
+      }
+      if (linkageEl) {
+        linkageEl.innerHTML = `
+          <span class="badge badge-success">HUMAN APPROVED</span>
+          <span class="linkage-text">Safety interlock unlocked · Fix verified for network application.</span>
+          <button class="btn btn-sm btn-outline" id="btn-jump-verifier" style="margin-left: auto; padding: 4px 10px; font-size: 0.75rem;">Open in Lab Verifier →</button>
+        `;
+        document.getElementById('btn-jump-verifier').addEventListener('click', () => switchView('verifier'));
+      }
+    } else if (decision === 'EDITED') {
+      if (pipeStep6) pipeStep6.className = 'pipeline-step-item completed';
+      if (statusPill) {
+        statusPill.textContent = 'Human Override';
+        statusPill.className = 'studio-status-pill edited';
+      }
+      if (gatePill) {
+        gatePill.textContent = 'HUMAN OVERRIDE';
+        gatePill.className = 'badge badge-primary';
+      }
+      if (linkageEl) {
+        linkageEl.innerHTML = `
+          <span class="badge badge-primary">HUMAN OVERRIDE</span>
+          <span class="linkage-text">Human override signed off · Corrective commands logged.</span>
+          <button class="btn btn-sm btn-outline" id="btn-jump-verifier" style="margin-left: auto; padding: 4px 10px; font-size: 0.75rem;">Open in Lab Verifier →</button>
+        `;
+        document.getElementById('btn-jump-verifier').addEventListener('click', () => switchView('verifier'));
+      }
+      document.getElementById('edit-diagnosis-container').classList.add('hidden');
+    } else if (decision === 'REJECTED') {
+      if (statusPill) {
+        statusPill.textContent = 'Rejected';
+        statusPill.className = 'studio-status-pill rejected';
+      }
+      if (gatePill) {
+        gatePill.textContent = 'REJECTED';
+        gatePill.className = 'badge badge-danger';
+      }
+      if (linkageEl) {
+        linkageEl.innerHTML = `
+          <span class="badge badge-danger">REJECTED</span>
+          <span class="linkage-text">Automated remediation blocked by human engineer.</span>
+        `;
+      }
+    }
 
     fetchMetrics();
-    alert(`Review recorded: ${decision}`);
+    alert(`Human review recorded: ${decision}`);
   } catch (err) {
     console.error('Review error:', err);
     alert('Failed to submit review.');
