@@ -1,25 +1,29 @@
 """
-NetSage AI — Deterministic Network Rule Checker
-Authoritative pure-Python deterministic rule engine for Cisco configuration validation.
-Evaluates:
-- Duplicate IP Addresses
-- Wrong Subnet Masks / Subnet Containment
-- Default Gateway Mismatches & Reachability
-- Interface Administrative & Physical Down States
-- Missing / Inactive / Pruned VLANs & Native VLAN Mismatches
-- Missing Routes, Unresolvable Next-Hops, and Routing Protocol Mismatches
-- ACL Wildcard Mask Errors & Missing NAT Designations
+NetSage AI - Deterministic Network Rule Checker
+
+Pure-Python, offline, deterministic engine that inspects Cisco IOS show-command
+output for common configuration mistakes *before or after* AI diagnosis, exactly
+as required by the project brief:
+
+    "Use Python to check duplicate IPs, wrong masks, gateway mismatch,
+     interface down, missing VLAN, and missing routes before or after
+     AI diagnosis."
+
+Checks are grouped by domain. Each returns a list of RuleFinding objects with a
+status of PASS / WARNING / FAIL so the diagnosis engine and the dashboard can
+weight the evidence.
 """
 
 import re
 import ipaddress
 from typing import List, Dict, Any, Optional
 
+
 class RuleFinding:
     def __init__(self, rule: str, status: str, severity: str, evidence: str, explanation: str):
         self.rule = rule
-        self.status = status  # PASS | FAIL | WARNING
-        self.severity = severity  # CRITICAL | HIGH | MEDIUM | LOW | INFO
+        self.status = status          # PASS | WARNING | FAIL
+        self.severity = severity      # CRITICAL | HIGH | MEDIUM | LOW | INFO
         self.evidence = evidence
         self.explanation = explanation
 
@@ -29,338 +33,658 @@ class RuleFinding:
             "status": self.status,
             "severity": self.severity,
             "evidence": self.evidence,
-            "explanation": self.explanation
+            "explanation": self.explanation,
         }
 
 
+def _first_line_matching(text: str, *needles: str) -> str:
+    for line in text.splitlines():
+        low = line.lower()
+        if any(n.lower() in low for n in needles):
+            return line.strip()
+    return ""
+
+
 class NetworkRuleChecker:
-    def __init__(self):
-        pass
-
     def run_all_checks(self, symptom: str, topology_note: str, show_outputs: str) -> List[Dict[str, str]]:
-        """
-        Executes all deterministic rule checks against the provided evidence.
-        """
         findings: List[RuleFinding] = []
-        combined_text = f"{symptom}\n{topology_note}\n{show_outputs}"
+        combined = f"{symptom}\n{topology_note}\n{show_outputs}"
 
-        # 1. Check Interface Down States
-        findings.extend(self.check_interface_down(show_outputs))
+        findings += self.check_interface_down(show_outputs)
+        findings += self.check_duplicate_ips(combined, show_outputs)
+        findings += self.check_subnet_and_gateway(combined, show_outputs)
+        findings += self.check_vlan_issues(show_outputs, symptom)
+        findings += self.check_routing_issues(show_outputs)
+        findings += self.check_acl_and_nat(show_outputs, symptom)
+        findings += self.check_dhcp_and_dns(show_outputs, symptom)
+        findings += self.check_wireless(show_outputs, symptom)
 
-        # 2. Check Duplicate IP Conflicts
-        findings.extend(self.check_duplicate_ips(combined_text, show_outputs))
+        # De-duplicate on (rule, evidence)
+        seen = set()
+        unique: List[RuleFinding] = []
+        for f in findings:
+            key = (f.rule, f.evidence[:80])
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(f)
 
-        # 3. Check Subnet Mask and Host/Gateway Subnet Consistency
-        findings.extend(self.check_subnet_and_gateway(combined_text, show_outputs))
-
-        # 4. Check VLAN configuration, Trunks, and Native VLAN Mismatches
-        findings.extend(self.check_vlan_issues(show_outputs))
-
-        # 5. Check Routing Table and Protocol Inconsistencies
-        findings.extend(self.check_routing_issues(show_outputs))
-
-        # 6. Check ACL and NAT Anomalies
-        findings.extend(self.check_acl_and_nat(show_outputs))
-
-        # If no issues flagged, produce a baseline clean health record
-        if not findings:
-            findings.append(RuleFinding(
+        if not unique:
+            unique.append(RuleFinding(
                 rule="Baseline Health Assessment",
                 status="PASS",
                 severity="INFO",
-                evidence="All deterministic pattern audits completed without rule violations.",
-                explanation="No explicit interface shutdowns, duplicate IPs, or structural syntax errors detected in supplied show commands."
+                evidence="All deterministic pattern audits completed without a rule violation.",
+                explanation="No interface shutdown, duplicate IP, mask/gateway, VLAN, routing, "
+                            "ACL/NAT, DHCP/DNS or wireless anomaly matched the supplied show output. "
+                            "The fault may require evidence not present in these captures.",
             ))
 
-        return [f.to_dict() for f in findings]
+        # FAIL first, then WARNING, then PASS; CRITICAL/HIGH before others
+        sev_rank = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+        status_rank = {"FAIL": 0, "WARNING": 1, "PASS": 2}
+        unique.sort(key=lambda f: (status_rank.get(f.status, 3), sev_rank.get(f.severity, 5)))
+        return [f.to_dict() for f in unique]
 
+    # ------------------------------------------------------------------ #
+    # 1. Interface / physical state
+    # ------------------------------------------------------------------ #
     def check_interface_down(self, show_outputs: str) -> List[RuleFinding]:
-        findings = []
-        
-        # Check for administratively down
-        admin_down_matches = re.findall(
-            r'([A-Za-z0-9/._-]+)\s+(?:is\s+)?administratively down',
-            show_outputs,
-            re.IGNORECASE
-        )
-        for iface in admin_down_matches:
+        findings: List[RuleFinding] = []
+
+        _IFACE = (r'(?:GigabitEthernet|FastEthernet|TenGigabitEthernet|Ethernet|Serial|'
+                  r'Dot11Radio|Loopback|Vlan|Tunnel|Port-channel|Gi|Fa|Te|Se|Eth)[0-9][0-9/._-]*')
+        for iface in re.findall(rf'({_IFACE})[^\n]*?administratively down', show_outputs, re.IGNORECASE):
+            if iface.lower().startswith("dot11radio"):
+                continue  # reported by the dedicated wireless-radio check below
             findings.append(RuleFinding(
-                rule="Interface Administrative State",
-                status="FAIL",
-                severity="CRITICAL",
-                evidence=f"Interface {iface} is reported as 'administratively down'.",
-                explanation=f"Interface {iface} has been shut down via configuration ('shutdown' command) and cannot pass traffic until 'no shutdown' is issued."
+                "Interface Administrative State", "FAIL", "CRITICAL",
+                f"Interface {iface} is reported as 'administratively down'.",
+                f"{iface} has been shut down in configuration and cannot pass traffic until "
+                f"'no shutdown' is issued.",
             ))
 
-        # Check for inactive access mode VLANs
-        inactive_vlan_matches = re.findall(
-            r'Name:\s*([A-Za-z0-9/._-]+).*?Access Mode VLAN:\s*(\d+)\s*\(inactive\)',
-            show_outputs,
-            re.IGNORECASE | re.DOTALL
-        )
-        for iface, vlan in inactive_vlan_matches:
+        for iface, vlan in re.findall(
+                r'Name:\s*([A-Za-z0-9/._-]+).*?Access Mode VLAN:\s*(\d+)\s*\(inactive\)',
+                show_outputs, re.IGNORECASE | re.DOTALL):
             findings.append(RuleFinding(
-                rule="Inactive Access VLAN State",
-                status="FAIL",
-                severity="HIGH",
-                evidence=f"Port {iface} assigned to VLAN {vlan} which is in '(inactive)' operational state.",
-                explanation=f"Port {iface} is assigned to VLAN {vlan}, but VLAN {vlan} does not exist in the switch VLAN database."
+                "Inactive Access VLAN State", "FAIL", "HIGH",
+                f"Port {iface} is assigned to VLAN {vlan} which is '(inactive)'.",
+                f"VLAN {vlan} does not exist in the switch VLAN database, so port {iface} stays "
+                f"operationally down.",
             ))
 
-        # Check for radio down on APs
         if re.search(r'Dot11Radio\d+\s+is\s+administratively down', show_outputs, re.IGNORECASE):
             findings.append(RuleFinding(
-                rule="Wireless Radio Operational State",
-                status="FAIL",
-                severity="HIGH",
-                evidence="Dot11Radio interface is administratively down in show outputs.",
-                explanation="The wireless radio interface is shut down, preventing client RF association and beacon transmission."
+                "Wireless Radio Operational State", "FAIL", "HIGH",
+                _first_line_matching(show_outputs, "Dot11Radio") or "Dot11Radio interface administratively down.",
+                "A wireless radio interface is shut down, preventing client RF association on that band.",
             ))
 
-        return findings
-
-    def check_duplicate_ips(self, combined_text: str, show_outputs: str) -> List[RuleFinding]:
-        findings = []
-        search_text = f"{combined_text}\n{show_outputs}"
-        
-        # Check for IOS DUPADDR / IP_DUP syslog
-        dup_match = re.search(
-            r'%(?:IP-4-DUPADDR|SYS-3-IP_DUP):\s*(?:Duplicate (?:address|IP address)\s+([0-9.]+)\s+on\s+([A-Za-z0-9/._-]+)|.*?(?:sourced by|mac)\s*([0-9a-fA-F.]+))',
-            search_text,
-            re.IGNORECASE
-        )
-        if dup_match:
-            ip = dup_match.group(1) or "detected IP"
-            iface = dup_match.group(2) or "interface"
+        # line protocol down while the interface is 'up' (L1/cabling / speed-duplex)
+        for iface in re.findall(r'([A-Za-z][A-Za-z0-9/._-]*) is up, line protocol is down',
+                                show_outputs, re.IGNORECASE):
             findings.append(RuleFinding(
-                rule="Duplicate IP Address Detection",
-                status="FAIL",
-                severity="CRITICAL",
-                evidence=dup_match.group(0).strip(),
-                explanation=f"A duplicate IP address ({ip}) was detected on {iface}. Two distinct MAC addresses claim the same IP, causing ARP instability."
+                "Interface Line Protocol", "FAIL", "HIGH",
+                f"{iface} is up / line protocol is down.",
+                f"Layer 1 is present on {iface} but Layer 2 keepalives fail - check cabling, "
+                f"encapsulation, or speed/duplex.",
             ))
-
         return findings
 
+    # ------------------------------------------------------------------ #
+    # 2. Duplicate addressing
+    # ------------------------------------------------------------------ #
+    def check_duplicate_ips(self, combined_text: str, show_outputs: str) -> List[RuleFinding]:
+        findings: List[RuleFinding] = []
+        search = f"{combined_text}\n{show_outputs}"
+
+        m = re.search(
+            r'%(?:IP-4-DUPADDR|SYS-3-IP_DUP):\s*Duplicate (?:address|IP address)\s+'
+            r'([0-9.]+)\s+on\s+([A-Za-z0-9/._-]+)',
+            search, re.IGNORECASE)
+        if m:
+            findings.append(RuleFinding(
+                "Duplicate IP Address Detection", "FAIL", "CRITICAL",
+                m.group(0).strip(),
+                f"IOS reports a duplicate IP ({m.group(1)}) on {m.group(2)}. Two devices claim the "
+                f"same address, causing ARP instability and intermittent loss.",
+            ))
+
+        # show ip arp listing the same IP twice with different MACs
+        arp_ips = re.findall(r'Internet\s+([0-9.]+)\s+\S+\s+([0-9a-fA-F.]{14})', show_outputs)
+        dupes = {ip for ip, _ in arp_ips if [i for i, _ in arp_ips].count(ip) > 1}
+        for ip in dupes:
+            findings.append(RuleFinding(
+                "ARP Table Duplicate Entry", "FAIL", "CRITICAL",
+                f"IP {ip} appears in the ARP table with more than one MAC address.",
+                f"Address {ip} is claimed by two MACs - a static host has been given the gateway/"
+                f"another host's IP.",
+            ))
+        return findings
+
+    # ------------------------------------------------------------------ #
+    # 3. Subnet mask / default gateway / L3 edge
+    # ------------------------------------------------------------------ #
     def check_subnet_and_gateway(self, combined_text: str, show_outputs: str) -> List[RuleFinding]:
-        findings = []
-        search_text = f"{combined_text}\n{show_outputs}"
+        findings: List[RuleFinding] = []
+        text = f"{combined_text}\n{show_outputs}"
 
-        # Extract Host IP and Gateway from ipconfig or text
-        host_ip_match = re.search(r'(?:IPv4|IP)\s+Address[.\s:]+([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})', search_text, re.IGNORECASE)
-        mask_match = re.search(r'Subnet Mask[.\s:]+([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})', search_text, re.IGNORECASE)
-        gw_match = re.search(r'Default Gateway[.\s:]+([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})', search_text, re.IGNORECASE)
+        host_ip = re.search(
+            r'(?:Autoconfiguration IPv4 Address|IPv4 Address|IP Address)[.\s:]*'
+            r'([0-9]{1,3}(?:\.[0-9]{1,3}){3})', text, re.IGNORECASE)
+        mask = re.search(r'Subnet Mask[.\s:]*([0-9]{1,3}(?:\.[0-9]{1,3}){3})', text, re.IGNORECASE)
+        gw = re.search(r'Default Gateway[.\s:]*([0-9]{1,3}(?:\.[0-9]{1,3}){3})', text, re.IGNORECASE)
 
-        if host_ip_match and gw_match:
-            host_ip_str = host_ip_match.group(1)
-            gw_ip_str = gw_match.group(1)
-            mask_str = mask_match.group(1) if mask_match else "255.255.255.0"
+        # APIPA - DHCP failure
+        apipa = re.search(r'\b(169\.254\.\d{1,3}\.\d{1,3})\b', text)
+        if apipa:
+            findings.append(RuleFinding(
+                "APIPA Address Allocation", "FAIL", "HIGH",
+                f"Host holds an APIPA link-local address {apipa.group(1)}.",
+                "A 169.254.x.x address means the client never received a DHCP reply - the DHCP "
+                "server is down or, across a routed boundary, 'ip helper-address' is missing.",
+            ))
 
-            # Check 0.0.0.0 Gateway
-            if gw_ip_str == "0.0.0.0":
+        if host_ip and gw:
+            hip, gip = host_ip.group(1), gw.group(1)
+            mstr = mask.group(1) if mask else "255.255.255.0"
+
+            if gip == "0.0.0.0":
                 findings.append(RuleFinding(
-                    rule="Default Gateway Assignment",
-                    status="FAIL",
-                    severity="HIGH",
-                    evidence=f"Host IPv4: {host_ip_str}, Default Gateway: {gw_ip_str}",
-                    explanation="Default Gateway is 0.0.0.0. The host has no egress gateway configured and cannot route off-subnet."
+                    "Default Gateway Assignment", "FAIL", "HIGH",
+                    f"Host IPv4 {hip}, Default Gateway 0.0.0.0.",
+                    "No usable default gateway - the DHCP lease is missing the 'default-router' "
+                    "option, so the host cannot route off-subnet.",
                 ))
-            elif gw_ip_str.startswith("169.254."):
-                findings.append(RuleFinding(
-                    rule="APIPA Address Allocation",
-                    status="FAIL",
-                    severity="HIGH",
-                    evidence=f"Host IP Address assigned APIPA: {host_ip_str}",
-                    explanation="Host received a 169.254.x.x link-local APIPA address, indicating DHCP discovery failure or missing DHCP relay."
-                ))
-            else:
+            elif not apipa:
                 try:
-                    net = ipaddress.IPv4Network(f"{host_ip_str}/{mask_str}", strict=False)
-                    gw_addr = ipaddress.IPv4Address(gw_ip_str)
-                    if gw_addr not in net:
+                    net = ipaddress.ip_network(f"{hip}/{mstr}", strict=False)
+                    if ipaddress.ip_address(gip) not in net:
                         findings.append(RuleFinding(
-                            rule="Host Gateway Subnet Containment",
-                            status="FAIL",
-                            severity="HIGH",
-                            evidence=f"Host IP {host_ip_str} with mask {mask_str} (network {net.network_address}) does not contain Gateway IP {gw_ip_str}.",
-                            explanation=f"Default gateway {gw_ip_str} is outside the host's configured local network ({net}), preventing direct Layer 2 ARP resolution."
+                            "Host / Gateway Subnet Containment", "FAIL", "HIGH",
+                            f"Host {hip}/{mstr} (network {net.network_address}) does not contain "
+                            f"gateway {gip}.",
+                            f"The configured default gateway {gip} is outside the host's local "
+                            f"subnet, so ARP for the gateway never resolves.",
                         ))
-                except Exception:
+                except ValueError:
                     pass
 
-        # Check HSRP Standby VIP mismatch
-        hsrp_match = re.search(r'Standby\s+([0-9.]+)\s+local\s+([0-9.]+)', show_outputs)
-        if hsrp_match:
-            active_ip = hsrp_match.group(1)
-            vip = hsrp_match.group(2)
-            if re.search(rf'{re.escape(active_ip)}.*?(?:Virtual IP:\s*([0-9.]+))', show_outputs):
-                findings.append(RuleFinding(
-                    rule="HSRP Virtual IP Consistency",
-                    status="WARNING",
-                    severity="HIGH",
-                    evidence=f"HSRP group reports Virtual IP {vip} on standby router.",
-                    explanation="Verify that both active and standby HSRP peers share the identical Virtual IP address."
-                ))
-
-        return findings
-
-    def check_vlan_issues(self, show_outputs: str) -> List[RuleFinding]:
-        findings = []
-
-        # 1. Native VLAN Mismatch
-        native_mismatch = re.search(
-            r'%CDP-4-NATIVE_VLAN_MISMATCH:.*?Native VLAN mismatch discovered on\s+([A-Za-z0-9/._-]+)\s*\((\d+)\).*?\((\d+)\)',
-            show_outputs,
-            re.IGNORECASE
-        )
-        if native_mismatch:
+        # Host mask differs from the router mask for the same interface
+        router_mask = re.search(r'Mask on \S+:\s*([0-9]{1,3}(?:\.[0-9]{1,3}){3})', text)
+        if mask and router_mask and mask.group(1) != router_mask.group(1):
             findings.append(RuleFinding(
-                rule="Native VLAN Mismatch",
-                status="FAIL",
-                severity="MEDIUM",
-                evidence=native_mismatch.group(0).strip(),
-                explanation=f"Trunk link native VLAN mismatch between local VLAN {native_mismatch.group(2)} and remote VLAN {native_mismatch.group(3)}. Untagged frames will leak across broadcast domains."
+                "Subnet Mask Consistency", "FAIL", "HIGH",
+                f"Host mask {mask.group(1)} vs gateway mask {router_mask.group(1)}.",
+                "Host and gateway disagree on the subnet mask, so each computes a different network "
+                "boundary and local hosts appear remote.",
             ))
 
-        # 2. Trunk Allowed VLAN Exclusion
-        allowed_vlan_match = re.search(
-            r'(?:Vlans allowed on trunk\s*\n\s*([A-Za-z0-9/._-]+)\s+([0-9,-]+)|(?:Port\s+)?([A-Za-z0-9/._-]+).*?Vlans allowed on trunk\s+([0-9,-]+))',
-            show_outputs,
-            re.IGNORECASE
-        )
-        if allowed_vlan_match:
-            port = allowed_vlan_match.group(1) or allowed_vlan_match.group(3) or "Trunk Port"
-            allowed_range = allowed_vlan_match.group(2) or allowed_vlan_match.group(4) or ""
-            if "1-9,11-4094" in allowed_range:
-                findings.append(RuleFinding(
-                    rule="Trunk Allowed VLAN Pruning",
-                    status="FAIL",
-                    severity="HIGH",
-                    evidence=f"Port {port} allowed VLANs: '{allowed_range}' (VLAN 10 is omitted).",
-                    explanation=f"Trunk port {port} explicitly restricts allowed VLANs, pruning VLAN 10 from traversing between switches."
-                ))
-
-        # 3. VLAN Database missing
-        vlan_missing = re.search(
-            r'VLAN id (\d+) not found in current VLAN database',
-            show_outputs,
-            re.IGNORECASE
-        )
-        if vlan_missing:
+        # ping to the gateway/DNS fails
+        pf = re.search(r'ping\s+([0-9.]+)[\s\S]{0,80}?(Request timed out|Destination host unreachable)',
+                       text, re.IGNORECASE)
+        if pf:
             findings.append(RuleFinding(
-                rule="VLAN Database Existence",
-                status="FAIL",
-                severity="CRITICAL",
-                evidence=vlan_missing.group(0).strip(),
-                explanation=f"VLAN {vlan_missing.group(1)} does not exist in the switch VLAN database. Ports in this VLAN remain operational down/inactive."
+                "Gateway / Next-Hop Reachability", "WARNING", "MEDIUM",
+                f"ping {pf.group(1)} -> {pf.group(2)}.",
+                f"The host cannot reach {pf.group(1)}. Confirm the target IP is correct and that "
+                f"L2 adjacency / the gateway interface is up.",
             ))
 
+        # router-on-a-stick: subinterface number != dot1Q tag
+        for subif, tag in re.findall(
+                r'interface \S+?\.(\d+)\s+encapsulation dot1Q (\d+)', text, re.IGNORECASE):
+            if subif != tag:
+                findings.append(RuleFinding(
+                    "Subinterface 802.1Q Encapsulation", "FAIL", "HIGH",
+                    f"Subinterface .{subif} is tagged 'encapsulation dot1Q {tag}'.",
+                    f"The dot1Q tag ({tag}) does not match the VLAN the subinterface serves ({subif}); "
+                    f"tagged frames for VLAN {subif} are never de-encapsulated.",
+                ))
+
+        # HSRP / standby virtual IP mismatch - take the trailing IP of the
+        # 'Standby' / group data row, not the "Virtual IP" header line.
+        vip = None
+        for line in text.splitlines():
+            if re.search(r'\b(Standby|Active|Init|Listen)\b', line) and "Virtual IP" not in line:
+                tail = re.search(r'([0-9]{1,3}(?:\.[0-9]{1,3}){3})\s*$', line.strip())
+                if tail:
+                    vip = tail
+                    break
+        want_vip = re.search(r'(?:VIP|virtual ip|gateway)\D{0,12}([0-9]{1,3}(?:\.[0-9]{1,3}){3})',
+                             combined_text, re.IGNORECASE)
+        if vip and want_vip and vip.group(1) != want_vip.group(1):
+            findings.append(RuleFinding(
+                "HSRP Virtual IP Consistency", "FAIL", "HIGH",
+                f"Standby group advertises Virtual IP {vip.group(1)}; expected {want_vip.group(1)}.",
+                "The HSRP peers do not share an identical virtual IP, so failover to the standby "
+                "does not present the expected default gateway.",
+            ))
         return findings
 
+    # ------------------------------------------------------------------ #
+    # 4. VLAN / trunk / switching
+    # ------------------------------------------------------------------ #
+    def check_vlan_issues(self, show_outputs: str, symptom: str = "") -> List[RuleFinding]:
+        findings: List[RuleFinding] = []
+
+        m = re.search(
+            r'%CDP-4-NATIVE_VLAN_MISMATCH:.*?on\s+([A-Za-z0-9/._-]+)\s*\((\d+)\).*?\((\d+)\)',
+            show_outputs, re.IGNORECASE)
+        if m:
+            findings.append(RuleFinding(
+                "Native VLAN Mismatch", "FAIL", "MEDIUM",
+                m.group(0).strip(),
+                f"Trunk {m.group(1)} native VLAN differs between the two ends "
+                f"({m.group(2)} vs {m.group(3)}); untagged frames leak between broadcast domains.",
+            ))
+
+        m = re.search(r'Vlans allowed on trunk\s*\n?\s*([A-Za-z0-9/._-]+)?\s*([0-9][0-9,\-]+)',
+                      show_outputs, re.IGNORECASE)
+        if m:
+            allowed = m.group(2)
+            if allowed not in ("1-4094", "1-1005") and re.search(r'[,\-]', allowed):
+                findings.append(RuleFinding(
+                    "Trunk Allowed VLAN List", "FAIL", "HIGH",
+                    f"Trunk allowed VLANs: '{allowed}'.",
+                    "The trunk carries an explicit (pruned) allowed-VLAN list. Any production VLAN "
+                    "not in this range is dropped between switches.",
+                ))
+
+        if re.search(r'VLAN id (\d+) not found in current VLAN database', show_outputs, re.IGNORECASE):
+            vid = re.search(r'VLAN id (\d+) not found', show_outputs).group(1)
+            findings.append(RuleFinding(
+                "VLAN Database Existence", "FAIL", "CRITICAL",
+                f"'VLAN id {vid} not found in current VLAN database'.",
+                f"VLAN {vid} was never created on this switch; every access port in VLAN {vid} "
+                f"stays operationally down.",
+            ))
+
+        # access port left in the default VLAN while the symptom expects another
+        ap = re.search(r'Access Mode VLAN:\s*1\s*\(default\)', show_outputs, re.IGNORECASE)
+        if ap and re.search(r'\b(finance|sales|engineering|voice|hr|guest|vlan\s*\d{2,})\b',
+                            symptom, re.IGNORECASE):
+            findings.append(RuleFinding(
+                "Access Port VLAN Assignment", "WARNING", "HIGH",
+                "Access port is in 'VLAN 1 (default)'.",
+                "The port that should carry a department VLAN is still in the default VLAN 1 - "
+                "run 'switchport access vlan <id>'.",
+            ))
+
+        # trunk not forming: admin dynamic but operational access, or both access
+        if re.search(r'Administrative Mode:\s*dynamic', show_outputs, re.IGNORECASE) and \
+           re.search(r'Operational Mode:\s*static access', show_outputs, re.IGNORECASE):
+            findings.append(RuleFinding(
+                "Trunk Negotiation (DTP)", "FAIL", "HIGH",
+                "Administrative Mode: dynamic / Operational Mode: static access.",
+                "DTP cannot negotiate a trunk because the peer is hard-set to access mode. Set "
+                "'switchport mode trunk' on both ends.",
+            ))
+
+        # voice VLAN missing on a VoIP port
+        if re.search(r'Voice VLAN:\s*none', show_outputs, re.IGNORECASE) and \
+           re.search(r'\b(voip|voice|ip phone|phone)\b', f"{symptom} {show_outputs}", re.IGNORECASE):
+            findings.append(RuleFinding(
+                "Voice VLAN Configuration", "WARNING", "MEDIUM",
+                "'Voice VLAN: none' on a port serving an IP phone.",
+                "The IP phone and PC share one port but no voice VLAN is configured, so phone "
+                "traffic lands untagged in the data VLAN.",
+            ))
+        return findings
+
+    # ------------------------------------------------------------------ #
+    # 5. Routing
+    # ------------------------------------------------------------------ #
     def check_routing_issues(self, show_outputs: str) -> List[RuleFinding]:
-        findings = []
+        findings: List[RuleFinding] = []
 
-        # 1. Gateway of last resort not set
-        if "Gateway of last resort is not set" in show_outputs and ("0.0.0.0/0" not in show_outputs or "S* " not in show_outputs):
+        if "Gateway of last resort is not set" in show_outputs and "S*" not in show_outputs:
             findings.append(RuleFinding(
-                rule="Gateway of Last Resort (Default Route)",
-                status="WARNING",
-                severity="MEDIUM",
-                evidence="show ip route reports: 'Gateway of last resort is not set'.",
-                explanation="Router has no default route configured. Packets destined for non-local unrouted subnets will be dropped."
+                "Gateway of Last Resort", "WARNING", "MEDIUM",
+                "'Gateway of last resort is not set' with no default route present.",
+                "No default route: traffic to any network not explicitly in the routing table is "
+                "dropped. Add 'ip route 0.0.0.0 0.0.0.0 <next-hop>' or a routing-protocol default.",
             ))
 
-        # 2. OSPF Hello/Dead Interval Discrepancy
-        hello_dead_matches = re.findall(
-            r'Timer intervals(?: configured)?,?\s*Hello\s+(\d+),\s*Dead\s+(\d+)',
-            show_outputs,
-            re.IGNORECASE
-        )
-        if len(hello_dead_matches) >= 2:
-            h1, d1 = hello_dead_matches[0]
-            h2, d2 = hello_dead_matches[1]
-            if (h1, d1) != (h2, d2):
+        # missing route to a specific destination
+        m = re.search(r'(Destination host unreachable|Network is unreachable)\D{0,60}from\s+([A-Za-z0-9._-]+)',
+                      show_outputs, re.IGNORECASE)
+        if m:
+            findings.append(RuleFinding(
+                "Missing Route to Destination", "FAIL", "HIGH",
+                m.group(0).strip(),
+                f"{m.group(2)} has no route toward the destination network - add the missing "
+                f"static route or fix the routing-protocol 'network' statement.",
+            ))
+
+        hd = re.findall(r'Timer intervals(?: configured)?,?\s*Hello\s+(\d+),\s*Dead\s+(\d+)',
+                        show_outputs, re.IGNORECASE)
+        if len(hd) >= 2 and hd[0] != hd[1]:
+            findings.append(RuleFinding(
+                "OSPF Timer Interval Agreement", "FAIL", "HIGH",
+                f"Hello/Dead {hd[0][0]}s/{hd[0][1]}s vs {hd[1][0]}s/{hd[1][1]}s on the shared link.",
+                "OSPF neighbours must use identical Hello and Dead intervals or the adjacency never "
+                "leaves INIT/DOWN.",
+            ))
+
+        if re.search(r'%OSPF-4-ERRRCV:.*invalid area ID\s+([0-9.]+)', show_outputs, re.IGNORECASE):
+            aid = re.search(r'invalid area ID\s+([0-9.]+)', show_outputs).group(1)
+            findings.append(RuleFinding(
+                "OSPF Area ID Consistency", "FAIL", "HIGH",
+                f"'%OSPF-4-ERRRCV ... invalid area ID {aid}'.",
+                "Interfaces on the same segment are in different OSPF areas; move one end into the "
+                "matching area.",
+            ))
+        areas = re.findall(r'Gi0/\d+\s+\d+\s+(\d+)\s+\d', show_outputs)
+        if len(set(areas)) > 1:
+            findings.append(RuleFinding(
+                "OSPF Area ID Consistency", "FAIL", "HIGH",
+                f"'show ip ospf interface brief' reports Area {' and '.join(sorted(set(areas)))} "
+                f"on the same link.",
+                "The two routers place the interconnect in different areas, so no adjacency forms.",
+            ))
+
+        eig = re.findall(r'(?:eigrp\s+(\d+)|EIGRP-IPv4 Protocol for AS\((\d+)\))', show_outputs, re.IGNORECASE)
+        asn = {a or b for a, b in eig if (a or b)}
+        if len(asn) >= 2:
+            findings.append(RuleFinding(
+                "EIGRP Autonomous System Match", "FAIL", "HIGH",
+                f"EIGRP AS numbers seen: {', '.join(sorted(asn))}.",
+                "EIGRP routers must share one AS number to become neighbours.",
+            ))
+
+        rip_v = re.findall(r'send version (\d)', show_outputs, re.IGNORECASE)
+        if len(rip_v) >= 2 and len(set(rip_v)) > 1:
+            findings.append(RuleFinding(
+                "RIP Version Agreement", "FAIL", "MEDIUM",
+                f"One router sends RIP v{rip_v[0]}, the other sends v{rip_v[1]}.",
+                "RIPv1 broadcasts and RIPv2 multicasts are not interoperable - set 'version 2' on "
+                "both routers.",
+            ))
+
+        # static default route via a next-hop outside the WAN subnet
+        nh = re.search(r'0\.0\.0\.0/0\s+\[[\d/]+\]\s+via\s+([0-9.]+)', show_outputs)
+        wan = re.search(r'([0-9]{1,3}(?:\.[0-9]{1,3}){3})\s+YES manual up\s+up', show_outputs)
+        if nh and wan:
+            try:
+                if ipaddress.ip_address(nh.group(1)) not in ipaddress.ip_network(f"{wan.group(1)}/30", strict=False):
+                    findings.append(RuleFinding(
+                        "Default Route Next-Hop", "WARNING", "HIGH",
+                        f"Default route points to {nh.group(1)}; local WAN interface is {wan.group(1)}.",
+                        f"The next-hop {nh.group(1)} is not on the directly connected WAN subnet, so "
+                        f"the router cannot resolve it.",
+                    ))
+            except ValueError:
+                pass
+
+        # static route bound to an exit interface
+        m = re.search(r'S\s+([0-9./]+)\s+is directly connected,\s+([A-Za-z0-9/]+)', show_outputs)
+        if m:
+            findings.append(RuleFinding(
+                "Static Route Exit Interface", "WARNING", "MEDIUM",
+                f"Static route for {m.group(1)} egresses {m.group(2)}.",
+                f"The static route uses an exit interface rather than a next-hop IP. Confirm "
+                f"{m.group(2)} is the correct egress toward {m.group(1)}.",
+            ))
+        return findings
+
+    # ------------------------------------------------------------------ #
+    # 6. ACL / NAT
+    # ------------------------------------------------------------------ #
+    def check_acl_and_nat(self, show_outputs: str, symptom: str = "") -> List[RuleFinding]:
+        findings: List[RuleFinding] = []
+
+        if re.search(r'Standard IP access list.*?\n\s*\d+\s+permit\s+[0-9.]+\s+255\.255\.255\.\d',
+                     show_outputs, re.IGNORECASE | re.DOTALL):
+            findings.append(RuleFinding(
+                "ACL Wildcard Mask Format", "FAIL", "CRITICAL",
+                _first_line_matching(show_outputs, "permit ") or "Standard ACL uses a subnet mask.",
+                "A standard ACL uses a subnet mask (255.255.255.0) instead of an inverse wildcard "
+                "mask (0.0.0.255); the entry matches no host packets and the implicit deny drops "
+                "everything.",
+            ))
+
+        # explicit DNS deny
+        if re.search(r'deny udp .*?eq (?:domain|53)\s*\((\d+) matches\)', show_outputs, re.IGNORECASE):
+            findings.append(RuleFinding(
+                "ACL Denies DNS (UDP/53)", "FAIL", "CRITICAL",
+                _first_line_matching(show_outputs, "deny udp"),
+                "An access-list entry explicitly denies UDP/53, so name resolution to that server "
+                "fails while IP connectivity still works.",
+            ))
+
+        # inbound ACL denies the LAN with no 'established' permit
+        if re.search(r'\d+\s+deny ip any (?:host )?[0-9.]+ 0\.0\.0\.\d+\s*\(\d+ matches\)', show_outputs) \
+           and "established" not in show_outputs.lower():
+            findings.append(RuleFinding(
+                "Inbound ACL Blocks Return Traffic", "FAIL", "HIGH",
+                _first_line_matching(show_outputs, "deny ip any"),
+                "The inbound WAN ACL denies traffic to the LAN and never permits 'established' TCP, "
+                "so replies to outbound sessions are dropped.",
+            ))
+
+        # extended ACL with no permit for a protocol the symptom needs
+        if re.search(r'Extended IP access list', show_outputs, re.IGNORECASE):
+            body = show_outputs.lower()
+            sym = symptom.lower()
+            wants_http = any(k in sym for k in ("http", "port 80", ":80", "browse", "web server", "web browsing"))
+            if wants_http and "permit tcp" in body and "eq www" not in body and "eq 80" not in body:
                 findings.append(RuleFinding(
-                    rule="OSPF Timer Interval Agreement",
-                    status="FAIL",
-                    severity="HIGH",
-                    evidence=f"Timer discrepancy: Router A uses Hello {h1}s/Dead {d1}s vs Router B uses Hello {h2}s/Dead {d2}s.",
-                    explanation="OSPF neighbors must agree on identical Hello and Dead timer intervals on a shared link to form adjacency."
+                    "ACL Missing Permit (HTTP/80)", "FAIL", "HIGH",
+                    _first_line_matching(show_outputs, "permit tcp"),
+                    "The extended ACL permits HTTPS/other ports but not TCP/80 (and ICMP); HTTP and "
+                    "ping hit the implicit 'deny ip any any'.",
+                ))
+            if "dns" in sym and "eq domain" not in body and "eq 53" not in body:
+                findings.append(RuleFinding(
+                    "ACL Missing Permit (DNS/53)", "FAIL", "HIGH",
+                    _first_line_matching(show_outputs, "deny ip any any", "deny ip any"),
+                    "The outbound ACL permits web ports but not UDP/53, so DNS queries are denied "
+                    "and browsing fails.",
                 ))
 
-        # 3. OSPF Area ID mismatch error
-        ospf_area_err = re.search(
-            r'%OSPF-4-ERRRCV:\s*Received packet with valid checksum but invalid area ID\s+([0-9.]+)',
-            show_outputs,
-            re.IGNORECASE
-        )
-        if ospf_area_err:
+        # standard ACL whose only entries have 0 matches while applied
+        acl_zero = re.findall(r'\d+\s+permit\s+[0-9.]+\s*\(0 matches\)', show_outputs)
+        if acl_zero and re.search(r'access-class \d+ in|ip access-group', show_outputs):
             findings.append(RuleFinding(
-                rule="OSPF Area ID Consistency",
-                status="FAIL",
-                severity="HIGH",
-                evidence=ospf_area_err.group(0).strip(),
-                explanation=f"OSPF packets received with mismatched Area ID ({ospf_area_err.group(1)}). Interfaces on a common segment must reside in the same Area."
+                "ACL Has No Matching Traffic", "WARNING", "HIGH",
+                acl_zero[0].strip(),
+                "Every permit entry in the applied ACL shows 0 matches - the source address the "
+                "user connects from is not listed, so the implicit deny blocks them.",
             ))
 
-        # 4. EIGRP AS Number Mismatch
-        eigrp_as_matches = re.findall(r'EIGRP-IPv4 Protocol for AS\((\d+)\)', show_outputs, re.IGNORECASE)
-        if len(eigrp_as_matches) >= 2 and eigrp_as_matches[0] != eigrp_as_matches[1]:
+        # NAT: no inside interface
+        if re.search(r'Inside interfaces:\s*none', show_outputs, re.IGNORECASE):
             findings.append(RuleFinding(
-                rule="EIGRP Autonomous System Match",
-                status="FAIL",
-                severity="HIGH",
-                evidence=f"EIGRP AS mismatch: Router A is configured for AS {eigrp_as_matches[0]} while Router B is in AS {eigrp_as_matches[1]}.",
-                explanation="EIGRP routers must share the identical Autonomous System number to form neighbor adjacencies and exchange routes."
+                "NAT Inside Interface Missing", "FAIL", "CRITICAL",
+                "'show ip nat statistics' -> Inside interfaces: none.",
+                "No interface carries 'ip nat inside', so the router never translates LAN traffic "
+                "and 'show ip nat translations' stays empty.",
             ))
 
+        # NAT: dynamic PAT statement without 'overload'
+        if re.search(r'ip nat inside source list \S+ interface \S+(?!\s+overload)', show_outputs) \
+           and "overload" not in _first_line_matching(show_outputs, "ip nat inside source list").lower():
+            findings.append(RuleFinding(
+                "NAT Overload (PAT) Disabled", "FAIL", "HIGH",
+                _first_line_matching(show_outputs, "ip nat inside source list"),
+                "The dynamic NAT statement is missing the 'overload' keyword, so only one inside "
+                "host can use the public IP at a time.",
+            ))
+
+        # NAT ACL that may not cover a second subnet mentioned in the symptom
+        nat_acl = re.search(r'access list (\S+)\s*\n\s*\d+\s+permit\s+([0-9.]+)\s+0\.0\.0\.\d+', show_outputs)
+        second = re.search(r'(192\.168\.\d+\.0|10\.\d+\.\d+\.0)/24', symptom)
+        if nat_acl and second and second.group(1).rsplit(".", 1)[0] not in show_outputs:
+            findings.append(RuleFinding(
+                "NAT ACL Subnet Coverage", "WARNING", "HIGH",
+                f"NAT ACL {nat_acl.group(1)} permits {nat_acl.group(2)} only.",
+                f"The subnet {second.group(1)}/24 from the symptom is not permitted by the NAT ACL, "
+                f"so that LAN is never translated.",
+            ))
+
+        # static PAT / port-forward present (verify target)
+        m = re.search(r'ip nat inside source static tcp ([0-9.]+) (\d+) ([0-9.]+) (\d+)', show_outputs)
+        if m:
+            findings.append(RuleFinding(
+                "Static NAT Port Forward", "WARNING", "MEDIUM",
+                m.group(0).strip(),
+                f"A static port-forward maps public {m.group(3)}:{m.group(4)} to internal "
+                f"{m.group(1)}:{m.group(2)} - verify the internal IP is the real server.",
+            ))
         return findings
 
-    def check_acl_and_nat(self, show_outputs: str) -> List[RuleFinding]:
-        findings = []
+    # ------------------------------------------------------------------ #
+    # 7. DHCP / DNS service layer
+    # ------------------------------------------------------------------ #
+    def check_dhcp_and_dns(self, show_outputs: str, symptom: str = "") -> List[RuleFinding]:
+        findings: List[RuleFinding] = []
+        low = show_outputs.lower()
 
-        # 1. Standard ACL mask error (e.g., 255.255.255.0 instead of 0.0.0.255)
-        acl_mask_error = re.search(
-            r'Standard IP access list\s+\d+.*?\n\s*\d+\s+permit\s+[0-9.]+\s+255\.255\.255\.0',
-            show_outputs,
-            re.IGNORECASE | re.DOTALL
-        )
-        if acl_mask_error:
+        # DHCP relay missing on a routed subinterface
+        if re.search(r'169\.254\.\d', show_outputs) and re.search(
+                r'interface \S+\.\d+\s+encapsulation dot1Q \d+\s+ip address', show_outputs, re.IGNORECASE) \
+                and "ip helper-address" not in low:
             findings.append(RuleFinding(
-                rule="ACL Wildcard Mask Format",
-                status="FAIL",
-                severity="CRITICAL",
-                evidence=acl_mask_error.group(0).strip(),
-                explanation="Standard ACL uses subnet mask '255.255.255.0' instead of inverse wildcard mask '0.0.0.255'. This causes the rule to match no valid host packets."
+                "DHCP Relay (ip helper-address)", "FAIL", "HIGH",
+                _first_line_matching(show_outputs, "interface", "encapsulation dot1Q") or "routed subinterface without ip helper-address",
+                "The client subnet is on a routed subinterface with no 'ip helper-address', so "
+                "broadcast DHCP Discover packets are never forwarded to the server.",
             ))
 
-        # 2. Missing IP NAT Inside Designation
-        if "Outside interfaces: GigabitEthernet" in show_outputs and "Inside interfaces: none" in show_outputs:
+        # DHCP pool block: missing default-router / dns-server
+        pool = re.search(r'(ip dhcp pool[\s\S]{0,300})', show_outputs, re.IGNORECASE)
+        if pool:
+            block = pool.group(1).lower()
+            if "network " in block and "default-router" not in block:
+                findings.append(RuleFinding(
+                    "DHCP Pool Missing default-router", "FAIL", "HIGH",
+                    _first_line_matching(show_outputs, "ip dhcp pool"),
+                    "The DHCP pool defines a network but no 'default-router', so clients lease an "
+                    "address with gateway 0.0.0.0 and cannot leave the subnet.",
+                ))
+            if "network " in block and "dns-server" not in block:
+                findings.append(RuleFinding(
+                    "DHCP Pool Missing dns-server", "WARNING", "MEDIUM",
+                    _first_line_matching(show_outputs, "ip dhcp pool"),
+                    "The DHCP pool has no 'dns-server' option, so clients receive DNS 0.0.0.0 and "
+                    "cannot resolve names.",
+                ))
+
+        # DHCP pool exhaustion
+        if re.search(r'Leased/Pending/Free[\s\S]{0,120}?/\s*0\s*$', show_outputs, re.MULTILINE) or \
+           re.search(r'\b\d+\s*/\s*0\s*/\s*0\b', show_outputs) or "Utilization mark (high/low)    : 100" in show_outputs:
             findings.append(RuleFinding(
-                rule="NAT Interface Pair Configuration",
-                status="FAIL",
-                severity="CRITICAL",
-                evidence="show ip nat statistics reports: 'Outside interfaces: GigabitEthernet... Inside interfaces: none'.",
-                explanation="No inside NAT interface ('ip nat inside') is designated on the LAN interface. Dynamic NAT translation cannot trigger."
+                "DHCP Pool Exhaustion", "FAIL", "HIGH",
+                _first_line_matching(show_outputs, "Leased", "Utilization mark") or "DHCP pool has 0 free addresses.",
+                "Every address in the DHCP scope is leased; new clients get nothing. Enlarge the "
+                "subnet/scope or shorten the lease time.",
             ))
 
+        # DHCP hands out the router's own IP (no excluded-address)
+        if re.search(r'%(?:IP-4-DUPADDR|SYS-3-IP_DUP)', show_outputs) and \
+           re.search(r'default-router\s+([0-9.]+)', show_outputs) and "excluded-address" not in low:
+            findings.append(RuleFinding(
+                "DHCP Excluded-Address Missing", "FAIL", "CRITICAL",
+                _first_line_matching(show_outputs, "default-router"),
+                "The gateway address is inside the DHCP pool and not excluded, so DHCP handed the "
+                "router's IP to a client - add 'ip dhcp excluded-address'.",
+            ))
+
+        # DNS server set to an unreachable / null address
+        dns = re.search(r'DNS Servers?[.\s:]*([0-9]{1,3}(?:\.[0-9]{1,3}){3})', show_outputs, re.IGNORECASE)
+        if dns and dns.group(1) == "0.0.0.0":
+            findings.append(RuleFinding(
+                "DNS Server Not Assigned", "FAIL", "HIGH",
+                "DNS Servers . . . : 0.0.0.0",
+                "The client has no DNS server (0.0.0.0) - the DHCP pool 'dns-server' option is "
+                "missing or misspelt.",
+            ))
+        elif dns and re.search(rf'ping {re.escape(dns.group(1))}[\s\S]{{0,60}}unreachable', show_outputs, re.IGNORECASE):
+            findings.append(RuleFinding(
+                "DNS Server Unreachable", "FAIL", "HIGH",
+                f"Configured DNS server {dns.group(1)} is unreachable.",
+                f"Name resolution points at {dns.group(1)}, which does not answer - correct the "
+                f"host/DHCP dns-server value.",
+            ))
+
+        # CAPWAP / lightweight AP discovery failing
+        if re.search(r'CAPWAP (?:State|Discovery)', show_outputs, re.IGNORECASE) and \
+           re.search(r'(timed out|Discovery Request Sent Count)', show_outputs, re.IGNORECASE):
+            opt43 = "option 43" in low
+            findings.append(RuleFinding(
+                "CAPWAP / WLC Discovery", "FAIL" if not opt43 else "WARNING", "HIGH",
+                _first_line_matching(show_outputs, "CAPWAP", "Discovery response"),
+                "The lightweight AP is stuck in CAPWAP discovery. Without DHCP option 43 (or a DNS "
+                "CISCO-CAPWAP-CONTROLLER record) it never learns the WLC address.",
+            ))
+        return findings
+
+    # ------------------------------------------------------------------ #
+    # 8. Wireless (SSID / PSK)
+    # ------------------------------------------------------------------ #
+    def check_wireless(self, show_outputs: str, symptom: str = "") -> List[RuleFinding]:
+        findings: List[RuleFinding] = []
+
+        clear = re.search(r'Clear text key:\s*([^\s)]+)', show_outputs)
+        client = re.search(r'<KeyMaterial>\s*([^<\s]+)\s*</KeyMaterial>', show_outputs)
+        if clear and client and clear.group(1).strip() != client.group(1).strip():
+            findings.append(RuleFinding(
+                "WPA2 Pre-Shared Key Mismatch", "FAIL", "HIGH",
+                f"AP key '{clear.group(1)}' vs client key '{client.group(1)}'.",
+                "The client and access point WPA2 pre-shared keys differ, so the 4-way handshake "
+                "fails with an authentication error.",
+            ))
+
+        m = re.search(r'dot11 ssid (\S+)\s+vlan (\d+)', show_outputs, re.IGNORECASE)
+        if m and re.search(r'guest', m.group(1), re.IGNORECASE):
+            ssid_vlan = m.group(2)
+            guest_vlan = re.search(r'(\d+)\s+Guest[-\w]*\s+active', show_outputs)
+            if guest_vlan and guest_vlan.group(1) != ssid_vlan:
+                findings.append(RuleFinding(
+                    "Guest SSID VLAN Mapping", "FAIL", "CRITICAL",
+                    f"SSID {m.group(1)} is mapped to VLAN {ssid_vlan}; guest VLAN is {guest_vlan.group(1)}.",
+                    "The guest SSID bridges wireless guests straight into a corporate VLAN instead of "
+                    "the isolated guest VLAN, defeating guest isolation.",
+                ))
         return findings
 
 
-# Standalone runner for testing & verification
+# Standalone runner / sample output
 if __name__ == "__main__":
     checker = NetworkRuleChecker()
-    sample_symptom = "PC in Sales cannot ping across trunk Fa0/24"
-    sample_topology = "SW-1 -> Trunk Fa0/24 -> SW-2"
-    sample_show = """
-SW-1# show interfaces trunk
-Port        Mode         Encapsulation  Status        Native vlan
-Fa0/24      on           802.1q         trunking      1
-
-Port        Vlans allowed on trunk
-Fa0/24      1-9,11-4094
-"""
-    results = checker.run_all_checks(sample_symptom, sample_topology, sample_show)
-    print("Rule Checker Sample Output:")
-    for r in results:
-        print(f"[{r['status']}] {r['rule']} (Severity: {r['severity']}): {r['explanation']}")
+    scenarios = [
+        ("Layer 2 VLAN pruning on a trunk",
+         "PC in Sales cannot ping across trunk Fa0/24 to SW-2",
+         "SW-1 -> Trunk Fa0/24 -> SW-2",
+         "SW-1# show interfaces trunk\nPort        Vlans allowed on trunk\nFa0/24      1-9,11-4094\n"),
+        ("Layer 3 duplicate IP conflict",
+         "Workstation has intermittent connectivity; gateway unreachable.",
+         "Host -> SW -> R1",
+         "%IP-4-DUPADDR: Duplicate address 192.168.10.1 on GigabitEthernet0/0, sourced by 0050.7966.6800\n"),
+        ("Default gateway outside host subnet",
+         "Host reaches local hosts but not the internet.",
+         "Host-A -> R1",
+         "Host-A> ipconfig\n IPv4 Address. . : 10.0.1.50\n Subnet Mask . . : 255.255.255.0\n Default Gateway : 10.0.2.1\nRouter-1# show ip interface brief\nGigabitEthernet0/0 10.0.1.1 YES manual up up\n"),
+        ("DHCP relay missing (APIPA)",
+         "New clients in VLAN 20 receive 169.254.x.x addresses.",
+         "Client -> SW -> R1 (router-on-a-stick)",
+         "Client> ipconfig\n Autoconfiguration IPv4 Address. : 169.254.120.44\nR1# show running-config interface g0/0.20\ninterface GigabitEthernet0/0.20\n encapsulation dot1Q 20\n ip address 192.168.20.1 255.255.255.0\n"),
+        ("Missing default route",
+         "HQ PC cannot reach the branch network.",
+         "HQ-Rtr -- Serial -- Branch",
+         "HQ-Rtr# show ip route\nGateway of last resort is not set\nC  10.1.1.0 is directly connected, GigabitEthernet0/0\n"),
+        ("ACL denies DNS",
+         "nslookup to the corporate DNS server times out.",
+         "Client -> R1 -> DNS 10.50.1.10",
+         "R1# show access-lists 101\nExtended IP access list 101\n 10 deny udp any host 10.50.1.10 eq domain (245 matches)\n 20 permit ip any any (1420 matches)\n"),
+    ]
+    out = ["=" * 78, "NetSage AI - Deterministic Rule Checker - Sample Execution", "=" * 78]
+    for name, sym, topo, show in scenarios:
+        out.append(f"\n--- {name} ---")
+        for r in checker.run_all_checks(sym, topo, show):
+            out.append(f"[{r['status']}] {r['rule']} ({r['severity']})")
+            out.append(f"    evidence : {r['evidence']}")
+            out.append(f"    detail   : {r['explanation']}")
+    print("\n".join(out))

@@ -8,11 +8,28 @@ import os
 import json
 from typing import List, Dict, Any, Optional
 
-DB_FILE = os.path.join(os.path.dirname(__file__), "netsage.db")
+DEFAULT_DB_FILE = os.path.join(os.path.dirname(__file__), "netsage.db")
+
+
+def get_db_file() -> str:
+    """
+    Resolve the SQLite path at call time.
+
+    Honors the NETSAGE_DB environment variable so tests (and alternate
+    deployments) can point at an isolated database instead of mutating the
+    shared development file.
+    """
+    return os.getenv("NETSAGE_DB") or DEFAULT_DB_FILE
+
+
+# Backwards-compatible alias; prefer get_db_file() for env-var awareness.
+DB_FILE = DEFAULT_DB_FILE
+
 
 def get_connection():
-    conn = sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(get_db_file())
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 def init_db():
@@ -274,5 +291,34 @@ def get_dashboard_metrics() -> Dict[str, Any]:
             "rejected": rejected,
             "agreement_rate": agreement_rate
         },
-        "responsible_ai_count": responsible_ai_count
+        "responsible_ai_count": responsible_ai_count,
+        "ai_evaluation": _ai_evaluation_summary(),
+    }
+
+
+def _ai_evaluation_summary() -> Dict[str, Any]:
+    """Read the batch-evaluation results written by backend/evaluate.py, if present."""
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "ai_evaluation.csv")
+    if not os.path.exists(path):
+        return {"available": False}
+    import csv as _csv
+    match = partial = mismatch = concept_ok = total = 0
+    with open(path, encoding="utf-8") as f:
+        for r in _csv.DictReader(f):
+            total += 1
+            v = r.get("verdict", "")
+            match += v == "MATCH"
+            partial += v == "PARTIAL"
+            mismatch += v == "MISMATCH"
+            concept_ok += r.get("predicted_concept", "").strip().lower() == r.get("expected_concept", "").strip().lower()
+    if not total:
+        return {"available": False}
+    return {
+        "available": True,
+        "total": total,
+        "match": match,
+        "partial": partial,
+        "mismatch": mismatch,
+        "exact_accuracy": round(match / total * 100, 1),
+        "concept_accuracy": round(concept_ok / total * 100, 1),
     }

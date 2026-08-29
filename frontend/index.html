@@ -44,13 +44,6 @@
     </div>
   </div>
 
-  <!-- Ambient Aurchestrix Aurora & Blueprint Grid -->
-  <div class="aurora-bg" aria-hidden="true">
-    <div class="aurora-blob-1"></div>
-    <div class="aurora-blob-2"></div>
-  </div>
-  <div class="blueprint-grid" aria-hidden="true"></div>
-
   <div class="app-layout">
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
@@ -119,7 +112,7 @@
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
           </button>
           <div class="topbar-title-group">
-            <span class="mono-tag" id="page-tag">[ 01 / Overview ]</span>
+            <span class="mono-tag" id="page-tag">Overview</span>
             <h2 id="page-title">Executive Dashboard <span class="serif-accent">at a glance.</span></h2>
             <p id="page-subtitle">Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.</p>
           </div>
@@ -214,6 +207,18 @@
             <div class="metric-value" id="kpi-responsible-count">5</div>
             <div class="metric-header">AI CORRECTIONS &amp; OVERRIDES</div>
             <p class="metric-desc">Audited failure modes where human expert oversight corrected AI.</p>
+          </div>
+
+          <div class="metric-stat-card">
+            <div class="metric-card-top">
+              <div class="metric-icon-circle blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <span class="mono-tag">AI EVALUATION</span>
+            </div>
+            <div class="metric-value" id="kpi-ai-accuracy">--</div>
+            <div class="metric-header">AI DIAGNOSTIC ACCURACY</div>
+            <p class="metric-desc">Concept correct on the batch run of all 39 cases (<span id="kpi-ai-exact">--</span> exact concept + OSI layer).</p>
           </div>
         </div>
 
@@ -749,7 +754,7 @@ Fa0/24      1</pre>
               <h3>Responsible AI &amp; Human Correction Registry <span class="serif-accent">audited.</span></h3>
               <p class="text-muted" style="margin-top: 4px;">Audited failure modes where AI hypotheses were caught and corrected by human network engineers.</p>
             </div>
-            <span class="badge badge-warning">5 Audited Cases (100% Retained)</span>
+            <span class="badge badge-warning">8 Corrections Logged</span>
           </div>
           <div class="card-body p-0">
             <table class="data-table">
@@ -817,7 +822,7 @@ Fa0/24      1</pre>
 
         <div class="footer-bottom-bar">
           <span class="mono-tag" style="font-size: 0.65rem;">© 2026 NetSage AI · Built for Cisco Applied AI Project Evaluation</span>
-          <span class="mono-tag" style="font-size: 0.65rem;">39 Lab Cases · 8 Domains · 5 Responsible AI Logs</span>
+          <span class="mono-tag" style="font-size: 0.65rem;">39 Lab Cases · 8 Domains · 8 Responsible AI Corrections</span>
         </div>
       </footer>
     </main>
@@ -886,7 +891,7 @@ Fa0/24      1</pre>
           </div>
           <div class="health-info">
             <div class="health-name">Knowledge Base SQLite DB</div>
-            <div class="health-detail" id="modal-db-status">Connected · 39 Lab Cases · 5 Responsible AI Logs</div>
+            <div class="health-detail" id="modal-db-status">Connected · 39 Lab Cases · 8 Responsible AI Corrections</div>
           </div>
           <span class="badge badge-primary">READY</span>
         </div>

@@ -34,22 +34,22 @@ function initPreloader() {
   if (!preloader || !bar) return;
 
   // Step 1
-  bar.style.width = '35%';
+  bar.style.width = '45%';
   if (status) status.textContent = 'Loading Cisco Packet Tracer cases...';
 
   setTimeout(() => {
-    bar.style.width = '75%';
-    if (status) status.textContent = 'Synchronizing Deterministic Rule Checker...';
-  }, 400);
+    bar.style.width = '80%';
+    if (status) status.textContent = 'Synchronizing deterministic rule checker...';
+  }, 180);
 
   setTimeout(() => {
     bar.style.width = '100%';
-    if (status) status.textContent = 'Ready · NetSage AI Online';
-  }, 800);
+    if (status) status.textContent = 'Ready · NetSage AI online';
+  }, 380);
 
   setTimeout(() => {
     preloader.classList.add('fade-out');
-  }, 1100);
+  }, 520);
 }
 
 function initNavigation() {
@@ -70,8 +70,8 @@ function initNavigation() {
   if (btnQuickDemo) {
     btnQuickDemo.addEventListener('click', () => {
       if (state.cases.length > 0) {
-        selectCaseForStudio(state.cases[0]);
         switchView('studio');
+        selectCaseForStudio(state.cases[0], true); // explicit "run it now" action
       }
     });
   }
@@ -98,11 +98,11 @@ function switchView(viewName) {
 
   // Update Topbar Titles
   const titles = {
-    dashboard: { tag: '[ 01 / Overview ]', title: 'Executive Dashboard <span class="serif-accent">at a glance.</span>', subtitle: 'Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.' },
-    explorer: { tag: '[ 02 / Knowledge Base ]', title: 'Case Explorer <span class="serif-accent">39 lab scenarios.</span>', subtitle: 'Browse Cisco Packet Tracer lab cases with complete topology and show-command evidence.' },
-    studio: { tag: '[ 03 / Diagnostics ]', title: 'Diagnosis Studio <span class="serif-accent">& human review gate.</span>', subtitle: 'Deterministic rule validation, AI-assisted root cause analysis, and mandatory human review.' },
-    verifier: { tag: '[ 04 / Verification ]', title: 'Packet Tracer Lab Verifier <span class="serif-accent">closed loop.</span>', subtitle: 'Simulate applying configuration fixes and verify resolution in a virtual network environment.' },
-    responsible: { tag: '[ 05 / Safety & Audit ]', title: 'Responsible AI & Correction Audit <span class="serif-accent">5 case log.</span>', subtitle: 'Registry of failure modes and human expert corrections ensuring AI safety and reliability.' }
+    dashboard: { tag: 'Overview', title: 'Executive Dashboard <span class="serif-accent">at a glance.</span>', subtitle: 'Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.' },
+    explorer: { tag: 'Knowledge Base', title: 'Case Explorer <span class="serif-accent">39 lab scenarios.</span>', subtitle: 'Browse Cisco Packet Tracer lab cases with complete topology and show-command evidence.' },
+    studio: { tag: 'Diagnostics', title: 'Diagnosis Studio <span class="serif-accent">& human review gate.</span>', subtitle: 'Deterministic rule validation, AI-assisted root cause analysis, and mandatory human review.' },
+    verifier: { tag: 'Verification', title: 'Packet Tracer Lab Verifier <span class="serif-accent">closed loop.</span>', subtitle: 'Simulate applying configuration fixes and verify resolution in a virtual network environment.' },
+    responsible: { tag: 'Safety & Audit', title: 'Responsible AI & Correction Audit <span class="serif-accent">8 case log.</span>', subtitle: 'Every case where the AI’s concept or OSI-layer classification disagreed with the known answer, and how a human corrected it.' }
   };
 
   const current = titles[viewName] || titles.dashboard;
@@ -179,15 +179,18 @@ async function fetchResponsibleAiLogs() {
 
 function animateValue(element, start, end, duration = 800, suffix = '') {
   if (!element) return;
+  // Set the final value up front so the number is always correct even if
+  // requestAnimationFrame never runs (e.g. the tab is in the background).
+  element.textContent = `${end}${suffix}`;
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduceMotion || typeof requestAnimationFrame !== 'function') return;
+
   const startTime = performance.now();
-  
   function update(currentTime) {
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    // Smooth ease-out curve
+    const progress = Math.min((currentTime - startTime) / duration, 1);
     const ease = 1 - Math.pow(1 - progress, 3);
-    const current = Math.floor(start + (end - start) * ease);
-    element.textContent = `${current}${suffix}`;
+    element.textContent = `${Math.floor(start + (end - start) * ease)}${suffix}`;
     if (progress < 1) {
       requestAnimationFrame(update);
     } else {
@@ -212,20 +215,36 @@ function renderMetrics(data) {
 
   if (totalReviewed === 0 || agreementRate === null || agreementRate === undefined) {
     if (agreementRateEl) agreementRateEl.textContent = 'N/A';
-  } else {
-    animateValue(agreementRateEl, 0, Math.round(agreementRate), 800, '%');
+  } else if (agreementRateEl) {
+    // Show the exact one-decimal value to match the API and the requirements
+    // audit (e.g. 45.5%). No integer animation — it races the final repaint.
+    agreementRateEl.textContent = `${agreementRate}%`;
   }
 
   animateValue(reviewedCasesEl, 0, totalReviewed, 600);
   animateValue(responsibleCountEl, 0, data.responsible_ai_count || 5, 700);
 
+  const evalData = data.ai_evaluation || {};
+  const aiAccuracyEl = document.getElementById('kpi-ai-accuracy');
+  const aiExactEl = document.getElementById('kpi-ai-exact');
+  if (aiAccuracyEl) {
+    aiAccuracyEl.textContent = evalData.available ? `${evalData.concept_accuracy}%` : 'N/A';
+  }
+  if (aiExactEl) {
+    aiExactEl.textContent = evalData.available ? `${evalData.exact_accuracy}%` : '--';
+  }
+
   // Render Concept Distribution Chart
   const chartContainer = document.getElementById('concept-chart');
   chartContainer.innerHTML = '';
-  const total = data.total_cases || 1;
+  const counts = Object.values(data.concept_distribution || {});
+  const maxCount = counts.length ? Math.max(...counts) : 1;
 
-  for (const [concept, count] of Object.entries(data.concept_distribution || {})) {
-    const pct = Math.round((count / total) * 100);
+  const entries = Object.entries(data.concept_distribution || {})
+    .sort((a, b) => b[1] - a[1]);
+  for (const [concept, count] of entries) {
+    // Scale bars to the largest concept so the smallest is still readable.
+    const pct = Math.round((count / maxCount) * 100);
     const row = document.createElement('div');
     row.className = 'bar-row';
     row.innerHTML = `
@@ -335,12 +354,12 @@ function selectCaseForExplorer(caseItem) {
   document.getElementById('detail-expected-fix').textContent = caseItem.expected_fix || 'Configuration update';
 
   document.getElementById('btn-launch-diagnosis').onclick = () => {
-    selectCaseForStudio(caseItem);
     switchView('studio');
+    selectCaseForStudio(caseItem, true); // user explicitly asked to diagnose this case
   };
 }
 
-function selectCaseForStudio(caseItem, autoRun = true) {
+function selectCaseForStudio(caseItem, autoRun = false) {
   state.selectedCase = caseItem;
 
   // 1. Studio Header Card
@@ -414,9 +433,9 @@ function selectCaseForStudio(caseItem, autoRun = true) {
 
   resetDeterministicChips();
 
-  // 7. Reset AI Diagnosis Card
+  // 7. Reset AI Diagnosis Card to a neutral pre-run state (no ground-truth leak)
   const rootCauseEl = document.getElementById('studio-root-cause');
-  if (rootCauseEl) rootCauseEl.textContent = "Analyzing network evidence and show command outputs...";
+  if (rootCauseEl) rootCauseEl.textContent = "Run the pipeline to generate an evidence-backed root cause.";
 
   const confScoreEl = document.getElementById('studio-confidence-score');
   if (confScoreEl) confScoreEl.textContent = "--%";
@@ -426,27 +445,27 @@ function selectCaseForStudio(caseItem, autoRun = true) {
 
   const confLevelEl = document.getElementById('studio-confidence');
   if (confLevelEl) {
-    confLevelEl.textContent = "Analyzing...";
+    confLevelEl.textContent = "Not yet run";
     confLevelEl.style.color = "var(--color-slate)";
   }
 
   const layerBadge = document.getElementById('studio-layer-badge');
-  if (layerBadge) layerBadge.textContent = `${caseItem.osi_layer} · ${caseItem.concept}`;
+  if (layerBadge) layerBadge.textContent = "Pending";
 
   const quoteEl = document.getElementById('studio-evidence-quote');
-  if (quoteEl) quoteEl.textContent = "Extracting grounded show-command citations...";
+  if (quoteEl) quoteEl.textContent = "Grounded show-command citations appear here after the run.";
 
   const whyMattersEl = document.getElementById('studio-why-matters');
-  if (whyMattersEl) whyMattersEl.innerHTML = `<strong>Why this matters:</strong> Observations from show-command captures corroborate root cause at ${caseItem.osi_layer}.`;
+  if (whyMattersEl) whyMattersEl.innerHTML = `<strong>Why this matters:</strong> the AI must tie its root cause to a line you can see in the show output above.`;
 
   const nextCmdEl = document.getElementById('studio-next-cmd');
-  if (nextCmdEl) nextCmdEl.textContent = `$ ${caseItem.expected_next_command || "show running-config"}`;
+  if (nextCmdEl) nextCmdEl.textContent = "$ —";
 
   const nextCmdPurpose = document.getElementById('studio-cmd-purpose');
-  if (nextCmdPurpose) nextCmdPurpose.textContent = `Purpose: Verify active ${caseItem.concept} configuration and telemetry on device.`;
+  if (nextCmdPurpose) nextCmdPurpose.textContent = "The single most decisive command to confirm the fault.";
 
   // Numbered Fix Steps
-  renderFixSteps(caseItem.expected_fix || "Configure corrective commands on Cisco device.");
+  renderFixSteps("Run the pipeline to generate remediation steps.");
 
   // 8. Mandatory Human Review Reset
   const gatePill = document.getElementById('gate-status-pill');
@@ -483,7 +502,11 @@ function resetPipelineTracker() {
     }
   }
   const statusText = document.getElementById('pipeline-status-text');
-  if (statusText) statusText.textContent = 'Standby · Ready to Execute';
+  if (statusText) statusText.textContent = 'Standby · press "Execute Complete Diagnosis Pipeline"';
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function resetDeterministicChips() {
@@ -789,44 +812,55 @@ async function runStudioDiagnosis() {
 
   const btn = document.getElementById('btn-run-diagnosis-engine');
   btn.disabled = true;
-  btn.textContent = "Analyzing Network Evidence...";
+  btn.textContent = "Running investigation...";
 
-  // 1. Start Investigation Pipeline Animation
   const statusPill = document.getElementById('studio-status-pill');
   if (statusPill) {
-    statusPill.textContent = 'Investigation In Progress';
+    statusPill.textContent = 'Investigation in progress';
     statusPill.className = 'studio-status-pill running';
   }
-
   const pipelineStatus = document.getElementById('pipeline-status-text');
-  if (pipelineStatus) pipelineStatus.textContent = 'Evaluating Deterministic Rules & LLM Pipeline...';
 
-  // Animate Pipeline Steps
-  document.getElementById('pipe-step-1').className = 'pipeline-step-item completed';
-  document.getElementById('pipe-step-2').className = 'pipeline-step-item active';
+  // Reduced-motion users skip the staged walk.
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stepDelay = reduceMotion ? 0 : 300;
+  const setStep = (n, cls) => {
+    const el = document.getElementById(`pipe-step-${n}`);
+    if (el) el.className = `pipeline-step-item ${cls}`;
+  };
+  const stepLabels = {
+    1: 'Ingesting symptom, topology and show output...',
+    2: 'Running deterministic rule checks...',
+    3: 'Collecting policy / rule findings...',
+    4: 'Deriving the AI root cause...',
+    5: 'Cross-checking the answer against the evidence...',
+  };
 
   try {
-    const res = await fetch(`${API_BASE}/api/diagnose`, {
+    // Kick off the request now; walk the pipeline while it is in flight.
+    const pending = fetch(`${API_BASE}/api/diagnose`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symptom, topology_note: topology, show_outputs: showOutputs, case_id: caseId })
     });
 
+    for (let n = 1; n <= 5; n++) {
+      setStep(n, 'active');
+      if (pipelineStatus) pipelineStatus.textContent = `Step ${n} / 6 — ${stepLabels[n]}`;
+      await sleep(stepDelay);
+      setStep(n, 'completed');
+    }
+
+    const res = await pending;
     if (!res.ok) throw new Error('Diagnosis pipeline failed');
     const data = await res.json();
     state.activeDiagnosis = data;
 
-    // Complete Pipeline Steps
-    document.getElementById('pipe-step-2').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-3').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-4').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-5').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-6').className = 'pipeline-step-item active';
-
-    if (pipelineStatus) pipelineStatus.textContent = 'Investigation Complete · Awaiting Human Safety Sign-Off';
+    setStep(6, 'active');
+    if (pipelineStatus) pipelineStatus.textContent = 'Investigation complete · awaiting human safety sign-off';
 
     if (statusPill) {
-      statusPill.textContent = 'Diagnosed · Awaiting Review';
+      statusPill.textContent = 'Diagnosed · awaiting review';
       statusPill.className = 'studio-status-pill pending';
     }
 
@@ -855,7 +889,7 @@ async function runStudioDiagnosis() {
 
     const confLevelEl = document.getElementById('studio-confidence');
     if (confLevelEl) {
-      confLevelEl.textContent = `${data.confidence.toUpperCase()} CONFIDENCE`;
+      confLevelEl.textContent = `${String(data.confidence).toUpperCase()} CONFIDENCE`;
       confLevelEl.style.color = confNum >= 75 ? '#059669' : confNum >= 50 ? '#d97706' : '#ef4444';
     }
 
@@ -946,7 +980,13 @@ async function runStudioDiagnosis() {
 
   } catch (err) {
     console.error('Diagnosis error:', err);
-    alert('Failed to execute diagnosis. Check server logs.');
+    if (pipelineStatus) pipelineStatus.textContent = 'Pipeline failed — check the server and try again.';
+    if (statusPill) {
+      statusPill.textContent = 'Investigation failed';
+      statusPill.className = 'studio-status-pill rejected';
+    }
+    const rc = document.getElementById('studio-root-cause');
+    if (rc) rc.textContent = 'The diagnosis request failed. Make sure the server is running, then run the pipeline again.';
   } finally {
     btn.disabled = false;
     btn.textContent = "Execute Complete Diagnosis Pipeline";

@@ -5,13 +5,12 @@
 
 ## 1. Current Repository Architecture & Baseline Assessment
 
-- **Repository Root:** `C:\Users\RAJ\.gemini\antigravity-ide\scratch`
+- **Repository Root:** `netsage-ai/` (local project workspace)
 - **Initial State:** Fresh project workspace; no legacy codebase or conflicting architecture found.
 - **System Environment:**
-  - OS: Windows (PowerShell)
-  - Node.js Runtime: v26.7.0 (`node`, `npm`, `npx`)
-  - Python Runtime: Python 3.12 (`python`, `pytest`, standard library)
-  - Database: Lightweight serverless SQLite3 (`netsage.db`)
+  - Python Runtime: Python 3.10+ (3.12 recommended) — standard library only, no third-party packages
+  - Database: Lightweight serverless SQLite3 (`netsage.db`, created on first run)
+  - Frontend: static HTML/CSS/vanilla JS served by the Python HTTP server (no build step, no Node)
 - **Assessment:** Greenfield build structured strictly according to Cisco's official problem statement and deliverable contracts.
 
 ---

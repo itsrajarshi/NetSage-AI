@@ -8,32 +8,39 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from _helpers import ensure_seeded, reseed
+
 from backend.db import (
-    init_db, save_review, get_reviews_for_case,
+    init_db, save_review, get_reviews_for_case, get_all_cases,
     get_responsible_ai_logs, get_dashboard_metrics, get_case,
     save_diagnosis, get_connection
 )
 from backend.diagnosis_engine import DiagnosisEngine
 
 class TestHumanReview(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        ensure_seeded()
+
     def setUp(self):
         init_db()
 
     def tearDown(self):
-        # Clean up test-specific reviews so database remains in clean baseline state
-        conn = get_connection()
-        c = conn.cursor()
-        c.execute("DELETE FROM reviews WHERE case_id IN ('VLAN-004', 'ROUT-002', 'DHCP-002', 'ACL-004', 'TEST_CASE_TMP')")
-        conn.commit()
-        conn.close()
+        # The integration test mutates reviews for real cases; restore the
+        # seeded baseline so later tests see a clean state.
+        reseed()
 
-    def test_review_submission_accepted(self):
-        reviews = get_reviews_for_case("VLAN-001")
-        self.assertTrue(any(r["decision"] == "ACCEPTED" for r in reviews))
+    def test_every_case_has_a_seeded_human_review(self):
+        for case in get_all_cases():
+            reviews = get_reviews_for_case(case["case_id"])
+            self.assertTrue(reviews, f"{case['case_id']} has no human review")
 
-    def test_review_submission_edited(self):
-        reviews = get_reviews_for_case("ACL-002")
-        self.assertTrue(any(r["decision"] == "EDITED" for r in reviews))
+    def test_all_three_decisions_are_represented(self):
+        decisions = set()
+        for case in get_all_cases():
+            for r in get_reviews_for_case(case["case_id"]):
+                decisions.add(r["decision"])
+        self.assertEqual(decisions, {"ACCEPTED", "EDITED", "REJECTED"})
 
     def test_responsible_ai_minimum_cases(self):
         logs = get_responsible_ai_logs()

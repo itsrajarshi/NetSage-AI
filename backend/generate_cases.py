@@ -1,3 +1,12 @@
+"""
+NetSage AI — Case Dataset Generator
+
+Source of truth for `data/cases.csv`. Edit the `cases` list below and run
+`python backend/generate_cases.py` to regenerate the CSV. This keeps the 39
+troubleshooting cases version-controlled as structured Python rather than
+hand-edited CSV rows.
+"""
+
 import csv
 import os
 

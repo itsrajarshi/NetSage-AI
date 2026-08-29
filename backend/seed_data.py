@@ -1,30 +1,65 @@
 """
-NetSage AI — Database Seeding Script
-Populates cases from data/cases.csv, generates initial diagnosis runs, and logs 5 Responsible AI correction cases.
+NetSage AI  -  Database Seeding
+
+1. Load every case from data/cases.csv.
+2. Run the batch AI evaluation (backend/evaluate.py)  -  feeds each case to the
+   diagnosis engine and compares the answer with the known-correct one.
+3. Record a human review for every case, driven by the evaluation verdict:
+      MATCH    -> ACCEPTED   (human agrees with the AI)
+      PARTIAL  -> EDITED     (human corrects the concept or OSI layer + the fix)
+      MISMATCH -> REJECTED   (AI diagnosis rejected as unsafe to apply)
+4. Populate the Responsible AI log from the cases the AI got wrong (>= 5 required).
 """
 
 import os
 import csv
 import sys
 
-# Ensure backend directory is in sys.path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from backend.db import (
-    init_db, insert_case, get_all_cases, save_diagnosis,
-    save_review, insert_responsible_ai_log, get_connection
+    init_db, insert_case, get_all_cases, get_case,
+    save_review, insert_responsible_ai_log, get_connection,
 )
-from backend.diagnosis_engine import DiagnosisEngine
+from backend.evaluate import evaluate, _norm_layer
+
+_LESSON = {
+    "VLAN": "Confirm the switching layer (VLAN database, access/trunk mode, allowed list) before assuming an L3 fault.",
+    "Gateway": "Check the host/gateway addressing and ARP resolution before moving up the stack.",
+    "DHCP": "Distinguish a DHCP server/pool fault from a relay (ip helper-address) fault across a routed boundary.",
+    "DNS": "Separate name-resolution failures from the transport that carries them (a filtered UDP/53 is not a DNS outage).",
+    "Routing": "Verify the control plane (routes, timers, AS, area, protocol version) matches on both neighbours.",
+    "ACL": "An ACL that blocks traffic can present at L3 or L4 depending on what it matches  -  read the ACE, not just the symptom.",
+    "NAT": "Check the NAT interface pair, the ACL coverage and the 'overload' keyword before blaming bandwidth.",
+    "Wireless": "CAPWAP/association failures are often an L1 radio or an L7 controller-discovery problem, not L2.",
+}
+
+
+def _why(row) -> str:
+    parts = []
+    if not row["concept_ok"]:
+        parts.append(f"classified the domain as **{row['predicted_concept']}** when the fault is **{row['expected_concept']}**")
+    if not row["layer_ok"]:
+        parts.append(f"placed it at **{_norm_layer(row['predicted_layer']).title()}** instead of **{_norm_layer(row['expected_layer']).title()}**")
+    return "The AI " + " and ".join(parts) + "."
+
+
+def _failure_type(row) -> str:
+    if not row["concept_ok"] and not row["layer_ok"]:
+        return "Wrong domain and OSI layer"
+    if not row["concept_ok"]:
+        return "Correct layer, wrong problem domain"
+    return "Correct domain, wrong OSI layer"
+
 
 def seed():
-    print("[NetSage AI] Initializing SQLite database...")
+    print("[NetSage AI] Initializing database...")
     init_db()
 
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM reviews")
-    c.execute("DELETE FROM responsible_ai_log")
-    c.execute("DELETE FROM diagnoses")
+    for t in ("reviews", "responsible_ai_log", "diagnoses"):
+        c.execute(f"DELETE FROM {t}")
     conn.commit()
     conn.close()
 
@@ -33,112 +68,68 @@ def seed():
         print(f"[Error] {csv_path} not found.")
         return
 
-    print(f"[NetSage AI] Ingesting cases from {csv_path}...")
-    with open(csv_path, mode="r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
+    with open(csv_path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
             insert_case(row)
+    print(f"[NetSage AI] Loaded {len(get_all_cases())} cases.")
 
-    cases = get_all_cases()
-    print(f"[NetSage AI] Successfully loaded {len(cases)} cases into database.")
+    print("[NetSage AI] Running batch AI evaluation (compare each answer with the known correct one)...")
+    result = evaluate(write_report=True)
+    s = result["summary"]
+    print(f"[NetSage AI]   {s['match']} match / {s['partial']} partial / {s['mismatch']} mismatch  "
+          f"(concept {s['concept_accuracy']}%, layer {s['layer_accuracy']}%)")
 
-    engine = DiagnosisEngine()
+    accepted = edited = rejected = 0
+    for row in result["rows"]:
+        case = get_case(row["case_id"])
+        if row["verdict"] == "MATCH":
+            decision, edited_diag, comment = (
+                "ACCEPTED", "",
+                f"AI concept ({row['predicted_concept']}) and OSI layer verified against the show output. Diagnosis approved.",
+            )
+            accepted += 1
+        elif row["verdict"] == "PARTIAL":
+            decision, edited_diag, comment = (
+                "EDITED", case["expected_fault"],
+                f"{_why(row)} Corrected to the ground-truth root cause and fix.",
+            )
+            edited += 1
+        else:
+            decision, edited_diag, comment = (
+                "REJECTED", "",
+                f"{_why(row)} Diagnosis rejected  -  unsafe to apply without a correct root cause.",
+            )
+            rejected += 1
 
-    # Pre-diagnose initial cases to establish working diagnosis IDs
-    case_diag_map = {}
-    for case in cases[:10]:
-        diag_res = engine.diagnose(
-            symptom=case["symptom"],
-            topology_note=case["topology_note"],
-            show_outputs=case["show_outputs"],
-            case_id=case["case_id"]
-        )
-        case_diag_map[case["case_id"]] = diag_res.get("id", 1)
-
-    print("[NetSage AI] Seeding Responsible AI Correction Log (5 Mandatory Cisco Cases)...")
-
-    responsible_ai_cases = [
-        {
-            "case_id": "DNS-002",
-            "failure_type": "Misidentified Root Cause (Layer 3 vs Layer 4)",
-            "ai_predicted_fault": "DNS server 10.50.1.10 is offline or routing table lacks route to 10.50.1.0/24 subnet.",
-            "human_corrected_fault": "Extended ACL 101 line 10 explicitly denies UDP port 53 (DNS) traffic destined to 10.50.1.10.",
-            "why_correction_needed": "The AI jumped to assuming server outage without inspecting ACL 101 match counters ('245 matches' on deny udp port 53).",
-            "lesson_learned": "Always audit access-lists and firewall drop counters before diagnosing Layer 3 route/host reachability issues."
-        },
-        {
-            "case_id": "ACL-002",
-            "failure_type": "Subnet Mask vs Wildcard Mask Confusion",
-            "ai_predicted_fault": "Interface GigabitEthernet0/0 is experiencing physical link degradation.",
-            "human_corrected_fault": "Standard ACL 10 is configured with subnet mask 255.255.255.0 instead of inverse wildcard mask 0.0.0.255.",
-            "why_correction_needed": "The AI failed to recognize that Cisco standard ACL syntax expects inverse wildcard masks; a mask of 255.255.255.0 matches 0 host packets, causing implicit deny all.",
-            "lesson_learned": "Enforce deterministic rule validation on ACL syntax to catch inverted mask declarations."
-        },
-        {
-            "case_id": "WLAN-002",
-            "failure_type": "Security Policy Hallucination",
-            "ai_predicted_fault": "Internal ERP server has an invalid gateway or compromised SSL certificate.",
-            "human_corrected_fault": "Guest SSID 'Company-Guest' is mapped to internal corporate VLAN 10 instead of isolated Guest VLAN 99.",
-            "why_correction_needed": "The AI overlooked the Layer 2 SSID-to-VLAN mapping in the AP configuration, which bridged untrusted guest RF frames directly into the corporate LAN.",
-            "lesson_learned": "Verify broadcast domain boundaries and 802.1Q mapping on wireless access points."
-        },
-        {
-            "case_id": "DHCP-001",
-            "failure_type": "Assumed Server Outage vs Missing Relay Agent",
-            "ai_predicted_fault": "Central DHCP Server (10.10.10.5) is stopped, offline, or out of memory.",
-            "human_corrected_fault": "Missing 'ip helper-address 10.10.10.5' configuration on router subinterface GigabitEthernet0/0.20.",
-            "why_correction_needed": "The AI assumed the remote server failed rather than noticing that router R1 was dropping client Layer 2 DHCP broadcast Discover packets without forwarding them as unicast.",
-            "lesson_learned": "Across routed boundaries, verify DHCP Relay Agent (ip helper-address) before suspecting DHCP server daemon failure."
-        },
-        {
-            "case_id": "NAT-004",
-            "failure_type": "Bandwidth Throttle vs Missing PAT Overload Keyword",
-            "ai_predicted_fault": "ISP connection bandwidth is saturated, causing connection timeouts for secondary clients.",
-            "human_corrected_fault": "NAT statement is missing the 'overload' keyword, disabling Port Address Translation (PAT).",
-            "why_correction_needed": "The AI misdiagnosed network congestion when the actual fault was static 1-to-1 dynamic NAT locking to the single public IP on G0/1.",
-            "lesson_learned": "Ensure dynamic multi-host sharing of a single public interface uses PAT ('overload')."
-        }
-    ]
-
-    for log in responsible_ai_cases:
-        insert_responsible_ai_log(log)
-
-        # Register corresponding review entry (EDITED = Disagreement/Correction)
         save_review({
-            "case_id": log["case_id"],
-            "diagnosis_id": case_diag_map.get(log["case_id"], 1),
-            "decision": "EDITED",
-            "edited_diagnosis": log["human_corrected_fault"],
-            "reviewer_comment": f"Responsible AI Correction: {log['why_correction_needed']}"
+            "case_id": row["case_id"],
+            "diagnosis_id": row["diagnosis_id"] or 1,
+            "decision": decision,
+            "edited_diagnosis": edited_diag,
+            "reviewer_comment": comment,
         })
 
-    # Register 5 ACCEPTED reviews (Agreement)
-    accepted_cases = [
-        ("VLAN-001", "Accurate root cause and verified evidence from show interfaces trunk."),
-        ("GW-001", "Default gateway mismatch on host verified."),
-        ("ROUT-001", "Missing static route to 10.2.2.0/24 confirmed."),
-        ("NAT-001", "Missing 'ip nat inside' on G0/0 confirmed."),
-        ("ACL-001", "ACL 100 blocking HTTP port 80 traffic confirmed.")
-    ]
-    for cid, comment in accepted_cases:
-        save_review({
-            "case_id": cid,
-            "diagnosis_id": case_diag_map.get(cid, 1),
-            "decision": "ACCEPTED",
-            "edited_diagnosis": "",
-            "reviewer_comment": comment
+    print(f"[NetSage AI] Human reviews: {accepted} accepted, {edited} edited, {rejected} rejected.")
+
+    corrections = [r for r in result["rows"] if r["verdict"] != "MATCH"]
+    print(f"[NetSage AI] Logging {len(corrections)} Responsible AI corrections...")
+    for row in corrections:
+        insert_responsible_ai_log({
+            "case_id": row["case_id"],
+            "failure_type": _failure_type(row),
+            "ai_predicted_fault": f"[{row['predicted_concept']} / {_norm_layer(row['predicted_layer']).title()}] "
+                                  + row["predicted_root_cause"],
+            "human_corrected_fault": f"[{row['expected_concept']} / {_norm_layer(row['expected_layer']).title()}] "
+                                     + row["expected_fault"],
+            "why_correction_needed": _why(row),
+            "lesson_learned": _LESSON.get(row["expected_concept"], "Verify the AI classification against the raw show output."),
         })
 
-    # Register 1 REJECTED review (Disagreement)
-    save_review({
-        "case_id": "ACL-003",
-        "diagnosis_id": case_diag_map.get("ACL-003", 1),
-        "decision": "REJECTED",
-        "edited_diagnosis": "",
-        "reviewer_comment": "Rejected due to invalid diagnosis reasoning."
-    })
+    total_rev = accepted + edited + rejected
+    rate = round(accepted / total_rev * 100, 1) if total_rev else 0.0
+    print(f"[NetSage AI] AI/human agreement rate: {rate}%  ({accepted}/{total_rev})")
+    print("[NetSage AI] Seeding complete.")
 
-    print("[NetSage AI] Seeding completed successfully.")
 
 if __name__ == "__main__":
     seed()
