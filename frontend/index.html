@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NetSage AI — Applied AI + Network Troubleshooting | Cisco Project</title>
+  <meta name="description" content="Agentic AI troubleshooting system for Cisco Packet Tracer networks with deterministic rule checking and mandatory human review.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Aurchestrix-style Ambient Preloader Splash -->
+  <div id="app-preloader" class="app-preloader">
+    <div class="preloader-content">
+      <div class="preloader-mark">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <h2 class="preloader-title">NetSage <span class="serif-accent">AI</span></h2>
+      <p class="preloader-subtitle" id="preloader-status-text">Initializing Cisco Network Diagnostics Engine...</p>
+      
+      <div class="preloader-bar-container">
+        <div class="preloader-bar-fill" id="preloader-progress"></div>
+      </div>
+
+      <div class="preloader-tags">
+        <span class="mono-tag" style="font-size: 0.65rem;">39 Lab Cases</span>
+        <span class="mono-tag" style="font-size: 0.65rem;">Deterministic Rules</span>
+        <span class="mono-tag" style="font-size: 0.65rem;">Human Review</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ambient Aurchestrix Aurora & Blueprint Grid -->
+  <div class="aurora-bg" aria-hidden="true">
+    <div class="aurora-blob-1"></div>
+    <div class="aurora-blob-2"></div>
+  </div>
+  <div class="blueprint-grid" aria-hidden="true"></div>
+
+  <div class="app-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="brand-container">
+        <div class="brand-mark">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>NetSage AI</h1>
+          <span class="tag-badge">Cisco Applied AI</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-view="dashboard" id="nav-dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-view="explorer" id="nav-explorer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          Case Explorer
+        </button>
+        <button class="nav-item" data-view="studio" id="nav-studio">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          Diagnosis Studio
+        </button>
+        <button class="nav-item" data-view="verifier" id="nav-verifier">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Lab Verifier
+        </button>
+        <button class="nav-item" data-view="responsible" id="nav-responsible">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Responsible AI Log
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-pill">
+          <div class="pulse-dot"></div>
+          <span class="system-pill-text">AI Pipeline &amp; Rules Live</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Topbar Header -->
+      <header class="topbar">
+        <div class="topbar-title-group">
+          <span class="mono-tag" id="page-tag">[ 01 / Overview ]</span>
+          <h2 id="page-title">Executive Dashboard <span class="serif-accent">at a glance.</span></h2>
+          <p id="page-subtitle">Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-outline" id="btn-quick-diagnose">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Quick Live Demo
+          </button>
+        </div>
+      </header>
+
+      <!-- VIEW 1: DASHBOARD -->
+      <section id="view-dashboard" class="view-panel active">
+        <!-- KPI Metrics Grid (Aurchestrix Stats Style) -->
+        <div class="metrics-grid">
+          <div class="metric-stat-card">
+            <div class="metric-value" id="kpi-total-cases">39</div>
+            <div class="metric-header">TOTAL LAB CASES</div>
+            <p class="metric-desc">Curated troubleshooting scenarios across 8 networking domains.</p>
+          </div>
+
+          <div class="metric-stat-card">
+            <div class="metric-value" id="kpi-agreement-rate">--</div>
+            <div class="metric-header">AI/HUMAN AGREEMENT RATE</div>
+            <p class="metric-desc">Accepted Reviews / Total Reviews (Explicit human concordance).</p>
+          </div>
+
+          <div class="metric-stat-card">
+            <div class="metric-value" id="kpi-reviewed-cases">0</div>
+            <div class="metric-header">TOTAL REVIEWS LOGGED</div>
+            <p class="metric-desc">Audit trail count across [ACCEPT], [EDIT], and [REJECT] decisions.</p>
+          </div>
+
+          <div class="metric-stat-card">
+            <div class="metric-value" id="kpi-responsible-count">5</div>
+            <div class="metric-header">AI CORRECTIONS &amp; OVERRIDES</div>
+            <p class="metric-desc">Audited failure modes where human expert oversight corrected AI.</p>
+          </div>
+        </div>
+
+        <!-- Charts and Breakdown Section -->
+        <div class="dashboard-grid">
+          <div class="card">
+            <div class="card-header">
+              <h3>Domain Coverage <span class="serif-accent">across 8 concepts.</span></h3>
+              <span class="badge">Architecture</span>
+            </div>
+            <div class="card-body">
+              <div class="bar-chart-container" id="concept-chart">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3>Human Oversight Decisions <span class="serif-accent">breakdown.</span></h3>
+              <span class="badge badge-primary">Safety Gate</span>
+            </div>
+            <div class="card-body">
+              <div class="review-stats-container" id="review-stats">
+                <!-- Injected via JavaScript -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Featured Scenarios Table -->
+        <div class="card mt-4">
+          <div class="card-header">
+            <h3>Featured Troubleshooting Scenarios</h3>
+            <button class="btn btn-sm btn-outline" id="btn-view-all-cases">Browse All 39 Cases &rarr;</button>
+          </div>
+          <div class="card-body p-0">
+            <table class="data-table" id="dashboard-cases-table">
+              <thead>
+                <tr>
+                  <th>Case ID</th>
+                  <th>Concept</th>
+                  <th>OSI Layer</th>
+                  <th>Symptom</th>
+                  <th>Severity</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="dashboard-cases-tbody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: CASE EXPLORER -->
+      <section id="view-explorer" class="view-panel">
+        <div class="filter-bar">
+          <div class="search-box">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="filter-search" placeholder="Search symptoms, show commands, topology...">
+          </div>
+
+          <div class="filter-selects">
+            <select id="filter-concept">
+              <option value="">All Concepts (8)</option>
+              <option value="VLAN">VLAN</option>
+              <option value="Gateway">Gateway</option>
+              <option value="DHCP">DHCP</option>
+              <option value="DNS">DNS</option>
+              <option value="Routing">Routing</option>
+              <option value="ACL">ACL</option>
+              <option value="NAT">NAT</option>
+              <option value="Wireless">Wireless</option>
+            </select>
+
+            <select id="filter-layer">
+              <option value="">All OSI Layers</option>
+              <option value="Layer 1">Layer 1 (Physical)</option>
+              <option value="Layer 2">Layer 2 (Data Link)</option>
+              <option value="Layer 3">Layer 3 (Network)</option>
+              <option value="Layer 4">Layer 4 (Transport)</option>
+              <option value="Layer 7">Layer 7 (Application)</option>
+            </select>
+
+            <select id="filter-severity">
+              <option value="">All Severities</option>
+              <option value="Critical">Critical</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="cases-grid-layout">
+          <!-- Cases List Column -->
+          <div class="cases-list-panel">
+            <div class="list-header">
+              <span id="case-count-label">Showing 39 Cases</span>
+            </div>
+            <div class="cases-list" id="explorer-cases-list">
+              <!-- Injected via JavaScript -->
+            </div>
+          </div>
+
+          <!-- Case Detail Preview Panel -->
+          <div class="case-detail-panel card" id="explorer-detail-panel">
+            <div class="empty-state" id="explorer-empty-state" style="padding: 60px 20px; text-align: center; color: var(--color-slate);">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom: 12px;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <h3>Select a Case to Inspect</h3>
+              <p>Explore complete topology notes, show commands, and launch AI diagnostics.</p>
+            </div>
+
+            <div id="explorer-detail-content" class="hidden">
+              <div class="detail-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid rgba(20,18,31,0.06);">
+                <div style="display: flex; gap: 8px;">
+                  <span class="badge badge-primary" id="detail-case-id">VLAN-001</span>
+                  <span class="badge" id="detail-concept">VLAN</span>
+                  <span class="badge" id="detail-layer">Layer 2</span>
+                  <span class="badge" id="detail-severity">High</span>
+                </div>
+                <button class="btn btn-primary" id="btn-launch-diagnosis">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                  Diagnose in Studio
+                </button>
+              </div>
+
+              <div class="detail-section mb-3">
+                <span class="mono-tag" style="display: block; margin-bottom: 6px;">REPORTED SYMPTOM</span>
+                <div class="callout" id="detail-symptom"></div>
+              </div>
+
+              <div class="detail-section mb-3">
+                <span class="mono-tag" style="display: block; margin-bottom: 6px;">NETWORK TOPOLOGY</span>
+                <div class="topology-box" id="detail-topology"></div>
+              </div>
+
+              <div class="detail-section mb-3">
+                <span class="mono-tag" style="display: block; margin-bottom: 6px;">CISCO IOS SHOW-COMMAND OUTPUTS</span>
+                <pre class="cli-terminal" id="detail-show-output"></pre>
+              </div>
+
+              <div class="detail-section">
+                <span class="mono-tag" style="display: block; margin-bottom: 6px;">GROUND TRUTH EXPECTED FAULT &amp; FIX</span>
+                <div class="ground-truth-box">
+                  <p><strong>Expected Fault:</strong> <span id="detail-expected-fault"></span></p>
+                  <p style="margin-top: 6px;"><strong>Expected Fix:</strong> <code id="detail-expected-fix" style="font-family: var(--font-mono); color: var(--color-violet-deep);"></code></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: DIAGNOSIS STUDIO -->
+      <section id="view-studio" class="view-panel">
+        <div class="studio-layout">
+          <!-- Left Column: Input & Evidence -->
+          <div class="studio-input-col">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <span class="mono-tag" style="display:block; margin-bottom: 2px;">NETWORK INCIDENT INPUT</span>
+                  <h3>Incident Evidence &amp; Topology</h3>
+                </div>
+                <span class="tag-badge" id="studio-case-badge">Case: VLAN-001</span>
+              </div>
+              <div class="card-body">
+                <div class="form-group mb-2">
+                  <label class="mono-tag" style="display:block; margin-bottom:6px;">Reported Symptom</label>
+                  <textarea id="studio-input-symptom" rows="2" class="form-control width-full"></textarea>
+                </div>
+                <div class="form-group mb-2">
+                  <label class="mono-tag" style="display:block; margin-bottom:6px;">Network Topology Context</label>
+                  <input type="text" id="studio-input-topology" class="form-control width-full">
+                </div>
+                <div class="form-group mb-3">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <label class="mono-tag">Cisco IOS Show-Command Evidence</label>
+                    <button class="btn btn-sm btn-outline" id="btn-copy-evidence" style="padding: 2px 10px; font-size: 0.72rem;">Copy Output</button>
+                  </div>
+                  <textarea id="studio-input-show" rows="8" class="form-control width-full cli-input-box"></textarea>
+                </div>
+                <button class="btn btn-primary width-full" id="btn-run-diagnosis-engine">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                  Execute Diagnosis Pipeline
+                </button>
+              </div>
+            </div>
+
+            <!-- Deterministic Rule Findings Box -->
+            <div class="card mt-3">
+              <div class="card-header">
+                <div>
+                  <span class="mono-tag" style="display:block; margin-bottom: 2px;">DETERMINISTIC VALIDATION</span>
+                  <h3>Python Rule Checker Findings</h3>
+                </div>
+                <span class="badge" id="rule-findings-count">0 findings</span>
+              </div>
+              <div class="card-body p-0">
+                <div class="rule-findings-list" id="studio-rule-findings" style="padding: 18px;">
+                  <div class="text-muted">Run diagnosis to evaluate deterministic network rules (Duplicate IP, Subnet Mismatch, Pruned VLAN, Admin Down).</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: AI Diagnosis Recommendation & Mandatory Human Review -->
+          <div class="studio-output-col">
+            <div class="card" id="studio-result-card">
+              <div class="card-header">
+                <div>
+                  <span class="mono-tag" style="display:block; margin-bottom: 2px;">AI COPILOT RECOMMENDATION</span>
+                  <h3>AI Diagnostic Analysis <span class="serif-accent">generated.</span></h3>
+                </div>
+                <div style="display: flex; gap: 8px; align-items:center;">
+                  <span class="badge badge-success" id="studio-confidence">High Confidence</span>
+                  <span class="badge badge-primary" id="studio-layer-badge">Layer 2</span>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="result-block mb-3">
+                  <span class="mono-tag" style="display:block; margin-bottom:6px;">PROBABLE ROOT CAUSE</span>
+                  <div class="result-value-primary" id="studio-root-cause">Click 'Execute Diagnosis Pipeline' to analyze network evidence.</div>
+                </div>
+
+                <div class="result-block mb-3">
+                  <span class="mono-tag" style="display:block; margin-bottom:6px;">EVIDENCE CITATION (GROUNDED SHOW OUTPUTS)</span>
+                  <div class="evidence-quote-box" id="studio-evidence-quote">Grounded citations from show commands will appear here.</div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px;" class="mb-3">
+                  <div class="result-block">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                      <span class="mono-tag">RECOMMENDED NEXT COMMAND</span>
+                      <button class="btn btn-sm btn-outline" id="btn-copy-next-cmd" style="padding: 2px 8px; font-size: 0.7rem;">Copy</button>
+                    </div>
+                    <code class="cmd-pill-box" id="studio-next-cmd">$ show interfaces trunk</code>
+                  </div>
+                  <div class="result-block">
+                    <span class="mono-tag" style="display:block; margin-bottom:6px;">OSI LAYER &amp; DOMAIN</span>
+                    <div id="studio-domain-tag" style="font-weight: 600; color: var(--color-ink); padding: 8px 12px; background: var(--color-paper); border-radius: var(--radius-inner); border: 1px solid rgba(20,18,31,0.06);">Layer 2 / VLAN</div>
+                  </div>
+                </div>
+
+                <div class="result-block mb-3">
+                  <span class="mono-tag" style="display:block; margin-bottom:6px;">RECOMMENDED REMEDIATION STEPS (CONFIGURATION FIX)</span>
+                  <pre class="cli-terminal" id="studio-fix-steps">SW-1(config-if)# switchport trunk allowed vlan add 10</pre>
+                </div>
+
+                <!-- MANDATORY HUMAN REVIEW GATE -->
+                <div class="human-review-gate">
+                  <div class="gate-header-banner">
+                    <div class="gate-title">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                      <span>MANDATORY HUMAN REVIEW REQUIRED (SAFETY GATE)</span>
+                    </div>
+                    <span class="badge badge-warning" style="font-size: 0.7rem;">Safety Interlock</span>
+                  </div>
+                  <p class="gate-warning-text">
+                    <strong>AI suggestion &ne; approved fix.</strong> Automated commands are blocked from network application until verified and signed off by a human engineer.
+                  </p>
+
+                  <div class="gate-actions">
+                    <button class="btn btn-success" id="btn-review-accept">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                      ACCEPT DIAGNOSIS
+                    </button>
+                    <button class="btn btn-warning" id="btn-review-edit">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      EDIT &amp; OVERRIDE
+                    </button>
+                    <button class="btn btn-danger" id="btn-review-reject">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      REJECT FIX
+                    </button>
+                  </div>
+
+                  <div class="review-feedback-form" id="review-feedback-form">
+                    <div class="form-group mb-2">
+                      <label class="mono-tag" style="display:block; margin-bottom:4px;">Engineer Justification / Audit Notes</label>
+                      <input type="text" class="form-control width-full" id="review-comment-input" placeholder="e.g. Verified show interfaces trunk evidence; VLAN 10 trunk pruning confirmed.">
+                    </div>
+                    <div class="form-group hidden" id="edit-diagnosis-container">
+                      <label class="mono-tag" style="display:block; margin-bottom:4px; color: #92400e;">Human-Corrected Root Cause &amp; Remediation</label>
+                      <textarea class="form-control width-full" id="edit-diagnosis-input" rows="2" placeholder="Specify human-corrected root cause and resolution syntax..."></textarea>
+                    </div>
+                  </div>
+
+                  <div class="review-history-box" id="studio-review-history" style="margin-top: 14px;">
+                    <em>Awaiting human engineer review decision above.</em>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: LAB VERIFIER -->
+      <section id="view-verifier" class="view-panel">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <span class="mono-tag" style="display:block; margin-bottom:2px;">CLOSED-LOOP EXECUTION</span>
+              <h3>Packet Tracer Lab Verification Simulator <span class="serif-accent">closed loop.</span></h3>
+            </div>
+            <span class="badge badge-success">Human Gate Enforced</span>
+          </div>
+          <div class="card-body">
+            <div class="verifier-safety-alert mb-4">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <div>
+                <strong>Human-in-the-Loop Safety Interlock Active:</strong>
+                <span>Remediation fixes will be strictly BLOCKED unless an approved [ACCEPT] or [EDIT] decision exists in the human review registry.</span>
+              </div>
+            </div>
+
+            <div class="verifier-grid">
+              <div class="verifier-step">
+                <div class="step-num">1</div>
+                <h4>Select Lab Scenario</h4>
+                <select id="verifier-case-select" class="form-control width-full mb-2" style="margin-top: 8px;"></select>
+                <div class="callout" id="verifier-case-symptom" style="margin-top: 8px; font-size: 0.85rem;">Select a case above.</div>
+                <div id="verifier-gate-status" style="margin-top: 10px;"></div>
+              </div>
+
+              <div class="verifier-step">
+                <div class="step-num">2</div>
+                <h4>Input Cisco Fix Command</h4>
+                <textarea id="verifier-fix-input" class="form-control width-full" rows="4" style="margin-top: 8px; font-family: var(--font-mono); font-size: 0.82rem;" placeholder="Enter configuration fix, e.g. switchport trunk allowed vlan add 10"></textarea>
+                <button class="btn btn-primary mt-2 width-full" id="btn-execute-verification">Apply Fix &amp; Verify Network</button>
+              </div>
+
+              <div class="verifier-step">
+                <div class="step-num">3</div>
+                <h4>Verification &amp; Telemetry Results</h4>
+                <div id="verifier-result-box" class="verification-output" style="margin-top: 8px;">
+                  <div class="text-muted">Awaiting remediation submission...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 5: RESPONSIBLE AI LOG -->
+      <section id="view-responsible" class="view-panel">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <span class="mono-tag" style="display:block; margin-bottom: 2px;">SAFETY &amp; ACCOUNTABILITY REGISTRY</span>
+              <h3>Responsible AI &amp; Human Correction Registry <span class="serif-accent">audited.</span></h3>
+              <p class="text-muted" style="margin-top: 4px;">Audited failure modes where AI hypotheses were caught and corrected by human network engineers.</p>
+            </div>
+            <span class="badge badge-warning">5 Audited Cases (100% Retained)</span>
+          </div>
+          <div class="card-body p-0">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Case ID</th>
+                  <th>Failure Classification</th>
+                  <th>Initial AI Hypothesis (Failure)</th>
+                  <th>Human Expert Correction (Ground Truth)</th>
+                  <th>Why Correction Was Required</th>
+                  <th>Engineering Prevention Rule</th>
+                </tr>
+              </thead>
+              <tbody id="responsible-ai-tbody">
+                <!-- Injected via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Aurchestrix-styled Application Footer -->
+      <footer class="app-footer">
+        <div class="footer-inner">
+          <div class="footer-brand-col">
+            <div class="footer-brand">
+              <div class="brand-mark sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <span class="footer-title">NetSage AI</span>
+            </div>
+            <p class="footer-subtitle">Applied AI + Network Troubleshooting Assistant with Human-in-the-Loop Oversight.</p>
+            <div class="footer-cisco-tag">Cisco Internship Project · Modern AI Track</div>
+          </div>
+
+          <div class="footer-info-col">
+            <span class="mono-tag">[ Project Engineer ]</span>
+            <div class="engineer-name">Developed by <span class="serif-accent" style="font-size: 1.35rem;">Rajarshi</span></div>
+            <p class="engineer-role">Network &amp; Applied AI Engineer · Cisco Internship Submission</p>
+            <div class="engineer-links">
+              <a href="https://github.com/itsrajarshi" target="_blank" rel="noopener noreferrer" class="social-pill" title="GitHub: @itsrajarshi">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                <span>GitHub</span>
+              </a>
+              <a href="https://linkedin.com/in/itsrajarshi" target="_blank" rel="noopener noreferrer" class="social-pill" title="LinkedIn: @itsrajarshi">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                <span>LinkedIn</span>
+              </a>
+              <a href="mailto:itsmeerajarshi@gmail.com" class="social-pill" title="Email Rajarshi">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span>Email</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-bottom-bar">
+          <span class="mono-tag" style="font-size: 0.65rem;">© 2026 NetSage AI · Built for Cisco Applied AI Project Evaluation</span>
+          <span class="mono-tag" style="font-size: 0.65rem;">39 Lab Cases · 8 Domains · 5 Responsible AI Logs</span>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
