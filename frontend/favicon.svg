@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="sageGrad" x1="4" y1="4" x2="60" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5b5bd6"/>
+      <stop offset="50%" stop-color="#3c3489"/>
+      <stop offset="100%" stop-color="#00bceb"/>
+    </linearGradient>
+    <linearGradient id="coreGlow" x1="20" y1="20" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00bceb"/>
+      <stop offset="100%" stop-color="#5b5bd6"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Shield / Rounded Octagon -->
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="#0f0e17" stroke="url(#sageGrad)" stroke-width="2.5"/>
+
+  <!-- Network Interconnect Nodes & Routing Mesh -->
+  <path d="M32 14L48 24V40L32 50L16 40V24L32 14Z" stroke="url(#sageGrad)" stroke-width="2" stroke-linejoin="round" opacity="0.6"/>
+  <path d="M32 14V50M16 24L48 40M16 40L48 24" stroke="url(#sageGrad)" stroke-width="1.5" stroke-dasharray="2 3" opacity="0.4"/>
+
+  <!-- Central AI Core Diamond (Glowing) -->
+  <polygon points="32,22 42,32 32,42 22,32" fill="url(#coreGlow)" filter="url(#glow)"/>
+  <polygon points="32,25 39,32 32,39 25,32" fill="#ffffff" opacity="0.9"/>
+
+  <!-- Satellite Network Vertices -->
+  <circle cx="32" cy="14" r="3" fill="#00bceb"/>
+  <circle cx="48" cy="24" r="3" fill="#5b5bd6"/>
+  <circle cx="48" cy="40" r="3" fill="#00bceb"/>
+  <circle cx="32" cy="50" r="3" fill="#5b5bd6"/>
+  <circle cx="16" cy="40" r="3" fill="#00bceb"/>
+  <circle cx="16" cy="24" r="3" fill="#5b5bd6"/>
+</svg>
