@@ -98,21 +98,31 @@
       </nav>
 
       <div class="sidebar-footer">
-        <div class="system-pill">
+        <button class="system-pill" id="btn-system-status" title="Click to view real-time system diagnostics & health telemetry" aria-label="System Diagnostics">
           <div class="pulse-dot"></div>
           <span class="system-pill-text">AI Pipeline &amp; Rules Live</span>
-        </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: auto; opacity: 0.6;"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </button>
       </div>
     </aside>
+
+    <!-- Mobile Sidebar Backdrop Overlay -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
 
     <!-- Main Content Area -->
     <main class="main-content">
       <!-- Topbar Header -->
       <header class="topbar">
-        <div class="topbar-title-group">
-          <span class="mono-tag" id="page-tag">[ 01 / Overview ]</span>
-          <h2 id="page-title">Executive Dashboard <span class="serif-accent">at a glance.</span></h2>
-          <p id="page-subtitle">Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.</p>
+        <div class="topbar-left-group">
+          <!-- Mobile Menu Toggle Button -->
+          <button id="mobile-menu-btn" class="mobile-menu-btn" aria-label="Toggle navigation menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="topbar-title-group">
+            <span class="mono-tag" id="page-tag">[ 01 / Overview ]</span>
+            <h2 id="page-title">Executive Dashboard <span class="serif-accent">at a glance.</span></h2>
+            <p id="page-subtitle">Real-time overview of AI diagnosis performance, human oversight, and dataset distribution.</p>
+          </div>
         </div>
         <div class="topbar-actions">
           <button class="btn btn-outline" id="btn-quick-diagnose">
@@ -632,6 +642,88 @@
         </div>
       </footer>
     </main>
+  </div>
+
+  <!-- System Health & Diagnostics Modal -->
+  <div id="system-health-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <div class="brand-mark sm" style="width: 28px; height: 28px;">
+            <svg width="16" height="16" viewBox="0 0 64 64" fill="none">
+              <polygon points="32,22 42,32 32,42 22,32" fill="#00bceb"/>
+              <circle cx="32" cy="14" r="3" fill="#00bceb"/>
+              <circle cx="48" cy="40" r="3" fill="#00bceb"/>
+              <circle cx="16" cy="40" r="3" fill="#00bceb"/>
+            </svg>
+          </div>
+          <div>
+            <h3 id="modal-title" style="font-size: 1.1rem; font-weight: 600;">System Diagnostics &amp; Health</h3>
+            <span class="mono-tag" style="font-size: 0.65rem;">NetSage AI Telemetry</span>
+          </div>
+        </div>
+        <button id="btn-close-modal" class="btn-icon" aria-label="Close modal">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="health-item">
+          <div class="health-icon green">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="health-info">
+            <div class="health-name">AI Diagnostics Engine</div>
+            <div class="health-detail">Multi-provider LLM pipeline with grounded heuristics fallback active.</div>
+          </div>
+          <span class="badge badge-success">ONLINE</span>
+        </div>
+
+        <div class="health-item">
+          <div class="health-icon green">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="health-info">
+            <div class="health-name">Deterministic Rule Checker</div>
+            <div class="health-detail">6/6 rule checks armed (IP, Subnet, Gateway, Status, Trunk, Timers).</div>
+          </div>
+          <span class="badge badge-success">6/6 PASS</span>
+        </div>
+
+        <div class="health-item">
+          <div class="health-icon blue">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div class="health-info">
+            <div class="health-name">Mandatory Safety Gate</div>
+            <div class="health-detail">Automated command execution interlocked until human sign-off.</div>
+          </div>
+          <span class="badge badge-primary">ENFORCED</span>
+        </div>
+
+        <div class="health-item">
+          <div class="health-icon purple">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <div class="health-info">
+            <div class="health-name">Knowledge Base SQLite DB</div>
+            <div class="health-detail" id="modal-db-status">Connected · 39 Lab Cases · 5 Responsible AI Logs</div>
+          </div>
+          <span class="badge badge-primary">READY</span>
+        </div>
+
+        <div class="health-ping-box mt-3">
+          <div class="ping-header">
+            <span class="mono-tag" style="font-size: 0.68rem;">REST API LATENCY</span>
+            <span id="health-ping-val" class="mono-tag" style="color: #059669; font-weight: 600;">-- ms</span>
+          </div>
+          <button id="btn-ping-health" class="btn btn-outline width-full mt-2" style="font-size: 0.8rem; padding: 8px 14px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+            Ping Health Endpoint
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
