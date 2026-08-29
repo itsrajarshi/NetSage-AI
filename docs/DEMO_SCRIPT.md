@@ -1,73 +1,114 @@
-# NetSage AI — 5–10 Minute Demo Script & Presentation Walkthrough
+# NetSage AI — 5–10 Minute Demo Script
+
 **Cisco Applied AI + Network Troubleshooting Internship Project**
 
----
+Target length: **6–8 minutes.** Record at 1280×720 or larger.
 
-## Presentation Overview & Objectives
-- **Target Duration**: 5 to 8 minutes
-- **Key Message**: NetSage AI empowers network engineers to quickly identify root causes in Cisco Packet Tracer topologies using deterministic rule checks and structured AI diagnosis, while maintaining strict human-in-the-loop oversight.
-
----
-
-## Step-by-Step Live Demo Flow
-
-### 1. Introduction & Executive Dashboard (1.5 Minutes)
-- **Action**: Open `http://localhost:8000`.
-- **Narrative**:
-  > *"Welcome to NetSage AI. Junior network engineers frequently struggle to connect high-level symptoms to specific root causes across VLANs, Routing, ACLs, and NAT. NetSage AI provides an evidence-backed troubleshooting assistant with mandatory human review."*
-- **Key UI Elements to Highlight**:
-  - **KPI Metrics**: 39 curated troubleshooting cases across 8 core domains.
-  - **Concept Distribution**: Balanced coverage across VLAN, Gateway, DHCP, DNS, Routing, ACL, NAT, Wireless.
-  - **AI vs. Human Agreement & Responsible AI Count**: 5 audited corrections logged.
+> **Before recording:** if you have an OpenAI or Gemini key, run
+> `export OPENAI_API_KEY=...` (or `GEMINI_API_KEY`) before `python run.py` so the
+> diagnosis goes through a real model. Without a key it runs the offline heuristic
+> engine, which is fine to show but weaker for an "Applied AI" demo. Either way,
+> re-run `python backend/seed_data.py` once so the dashboard numbers are fresh.
 
 ---
 
-### 2. Case Explorer & Evidence Inspection (1.5 Minutes)
-- **Action**: Click on **"Case Explorer"** in the sidebar.
-- **Narrative**:
-  > *"The Case Explorer indexes real Packet Tracer troubleshooting scenarios. Let's filter by Concept 'VLAN' and inspect case `VLAN-001`."*
-- **Walkthrough**:
-  - Show the **Symptom** (*"PC-1 in Sales cannot ping PC-2 in Sales across the core trunk"*).
-  - Show the **Network Topology** notes.
-  - Show the actual Cisco IOS `show interfaces trunk` output.
-  - Click **"Diagnose in Studio"**.
+## 0. Setup (off-camera)
+
+```bash
+python run.py          # seeds the DB, runs the batch evaluation, serves :8000
+```
+Open `http://localhost:8000`.
 
 ---
 
-### 3. Diagnosis Studio & Deterministic Rule Checking (2 Minutes)
-- **Action**: In **"Diagnosis Studio"**, click **"Execute Diagnosis Pipeline"**.
-- **Narrative**:
-  > *"Notice the multi-stage pipeline. First, the Deterministic Rule Checker runs pure-Python validation and immediately flags that VLAN 10 is missing from the allowed VLAN list (`1-9,11-4094`). Then, the AI synthesis model generates a strict JSON recommendation with quoted evidence and actionable fix steps."*
-- **Key UI Elements to Highlight**:
-  - **Probable Root Cause**: Detailed explanation of trunk pruning.
-  - **Evidence Quote Box**: Direct citation from `show interfaces trunk`.
-  - **OSI Layer & Next Command**: Layer 2 / `show interfaces Fa0/24 switchport`.
-  - **Remediation Commands**: `switchport trunk allowed vlan add 10`.
+## 1. Problem + dashboard  (~1.5 min)
+
+> *"Junior network engineers know the commands but struggle to connect a symptom
+> to the root cause — is a PC that can't reach a server a VLAN, routing, DHCP, DNS,
+> ACL or NAT problem? NetSage AI reads the symptom and the show output, proposes a
+> diagnosis, and requires a human to sign off before anything is applied."*
+
+Point at the KPI row:
+- **39** lab cases across 8 domains (VLAN, Gateway, DHCP, DNS, Routing, ACL, NAT, Wireless).
+- **AI diagnostic accuracy 89.7%** — the engine was run against all 39 known answers.
+- **AI / human agreement 79.5%** — 31 of 39 diagnoses were accepted as-is.
+- **8 corrections logged** — the cases a human had to edit or reject.
+
+Scroll to the **Domain Coverage** and **Human Oversight Decisions** charts.
 
 ---
 
-### 4. Mandatory Human Review Gate (1.5 Minutes)
-- **Action**: Scroll to the **"MANDATORY HUMAN REVIEW GATE"** at the bottom of Diagnosis Studio.
-- **Narrative**:
-  > *"Crucially, the system will NEVER apply AI changes automatically. A human engineer must review and approve. We have three options: ACCEPT, EDIT, or REJECT. For this case, the analysis is 100% accurate, so we enter our reviewer rationale and click [ACCEPT AI DIAGNOSIS]."*
-- **Action**: Type *"Verified trunk allowed list pruning"* and click **[ACCEPT AI DIAGNOSIS]**.
-- **Result**: Instant update to review history and dashboard metrics.
+## 2. Case Explorer — the evidence  (~1 min)
+
+Sidebar → **Case Explorer** → filter Concept = **VLAN** → click **VLAN-001**.
+
+Show, in order: the **symptom**, the **topology note**, the real
+`show interfaces trunk` output (VLAN 10 missing from `1-9,11-4094`), and the
+**ground-truth fault + fix** at the bottom. Click **Diagnose in Studio**.
 
 ---
 
-### 5. Closed-Loop Lab Verification Simulator (1.5 Minutes)
-- **Action**: Navigate to **"Lab Verifier"**.
-- **Narrative**:
-  > *"Once approved, we simulate applying the configuration fix to the Packet Tracer lab. Let's enter the corrective command: `switchport trunk allowed vlan add 10` and click [Apply Fix & Verify]."*
-- **Action**: Click **"Apply Fix & Verify"**.
-- **Result**:
-  - Displays simulated post-remediation show output: `Ping results: 5/5 packets received (0% loss, 1ms RTT). Interface state: UP/UP. 0 rule violations.`
+## 3. Diagnosis Studio — pipeline + rule checker  (~2 min)
+
+The Studio opens in **standby**. Click **Execute Complete Diagnosis Pipeline** and
+narrate the six steps as they light up:
+
+> *"Evidence is ingested, then the deterministic Python rule checker runs first —
+> no model involved — and flags the pruned trunk allowed-VLAN list. Those findings
+> are handed to the AI, which returns a strict-JSON diagnosis that has to quote a
+> real line from the show output as its evidence. The last step is the human gate."*
+
+Highlight: **Probable Root Cause**, the **evidence quote** (a verbatim show-output
+line), **confidence gauge**, **next command**, and the numbered **fix steps**.
 
 ---
 
-### 6. Responsible AI Log & Conclusion (1 Minute)
-- **Action**: Click on **"Responsible AI Log"**.
-- **Narrative**:
-  > *"Finally, we review the Responsible AI Registry. Here we document 5 critical cases where human engineers caught AI errors—such as distinguishing Layer 4 ACL drops from Layer 3 server outages, or catching inverted subnet masks in standard ACLs. This ensures continuous safety and model improvement."*
-- **Conclusion**:
-  > *"NetSage AI fulfills every Cisco requirement: 30+ cases, prompt library, deterministic rule checker, interactive dashboard, human review gate, and closed-loop verification."*
+## 4. Mandatory human review gate  (~1.5 min)
+
+Scroll to **Mandatory Human Review Required**.
+
+> *"Nothing is applied automatically. The reviewer picks ACCEPT, EDIT or REJECT.
+> For VLAN-001 the diagnosis is correct, so I add a note and ACCEPT."*
+
+Type *"Verified trunk allowed-VLAN list; VLAN 10 confirmed missing"* → **ACCEPT & VERIFY**.
+The gate flips to **HUMAN APPROVED** and the verifier unlocks.
+
+**Then show a case the AI got wrong.** Switch the case dropdown to **DNS-002**,
+run the pipeline:
+
+> *"Here the engine calls it an ACL problem at Layer 4. It's not wrong that an ACL
+> is involved — but the incident is a DNS-resolution failure, so a human reviewer
+> EDITs it, records the correct classification, and that edit becomes an entry in
+> the Responsible AI log."*
+
+Click **EDIT & OVERRIDE**, adjust the text, submit.
+
+---
+
+## 5. Closed-loop lab verifier  (~1 min)
+
+Sidebar → **Lab Verifier** → case **VLAN-001** → the fix
+`switchport trunk allowed vlan add 10` is pre-filled → **Apply Fix & Verify Network**.
+
+Show the simulated post-fix output: `5/5 packets received`, interfaces `UP/UP`,
+`0 rule violations`. Point out that verification was **blocked** until the human
+review existed.
+
+---
+
+## 6. Responsible AI log + close  (~1 min)
+
+Sidebar → **Responsible AI Log**.
+
+> *"These 8 rows aren't written by hand — they're generated from the batch run.
+> Every case where the AI's concept or OSI-layer classification disagreed with the
+> known answer is logged with what it predicted, what the human corrected it to,
+> and the lesson. For example GW-002: the AI saw the dot1Q tag and called it a
+> switching problem, when it's actually an inter-VLAN routing fault."*
+
+Close:
+
+> *"NetSage AI covers every deliverable — 39 cases, the prompt library, a
+> deterministic checker that fires on all of them, the batch AI evaluation against
+> known answers, a full human-review log with accepts, edits and rejects, and the
+> closed-loop verifier — with a human in the loop at every step."*
