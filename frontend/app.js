@@ -70,8 +70,8 @@ function initNavigation() {
   if (btnQuickDemo) {
     btnQuickDemo.addEventListener('click', () => {
       if (state.cases.length > 0) {
-        selectCaseForStudio(state.cases[0]);
         switchView('studio');
+        selectCaseForStudio(state.cases[0], true); // explicit "run it now" action
       }
     });
   }
@@ -354,12 +354,12 @@ function selectCaseForExplorer(caseItem) {
   document.getElementById('detail-expected-fix').textContent = caseItem.expected_fix || 'Configuration update';
 
   document.getElementById('btn-launch-diagnosis').onclick = () => {
-    selectCaseForStudio(caseItem);
     switchView('studio');
+    selectCaseForStudio(caseItem, true); // user explicitly asked to diagnose this case
   };
 }
 
-function selectCaseForStudio(caseItem, autoRun = true) {
+function selectCaseForStudio(caseItem, autoRun = false) {
   state.selectedCase = caseItem;
 
   // 1. Studio Header Card
@@ -433,9 +433,9 @@ function selectCaseForStudio(caseItem, autoRun = true) {
 
   resetDeterministicChips();
 
-  // 7. Reset AI Diagnosis Card
+  // 7. Reset AI Diagnosis Card to a neutral pre-run state (no ground-truth leak)
   const rootCauseEl = document.getElementById('studio-root-cause');
-  if (rootCauseEl) rootCauseEl.textContent = "Analyzing network evidence and show command outputs...";
+  if (rootCauseEl) rootCauseEl.textContent = "Run the pipeline to generate an evidence-backed root cause.";
 
   const confScoreEl = document.getElementById('studio-confidence-score');
   if (confScoreEl) confScoreEl.textContent = "--%";
@@ -445,27 +445,27 @@ function selectCaseForStudio(caseItem, autoRun = true) {
 
   const confLevelEl = document.getElementById('studio-confidence');
   if (confLevelEl) {
-    confLevelEl.textContent = "Analyzing...";
+    confLevelEl.textContent = "Not yet run";
     confLevelEl.style.color = "var(--color-slate)";
   }
 
   const layerBadge = document.getElementById('studio-layer-badge');
-  if (layerBadge) layerBadge.textContent = `${caseItem.osi_layer} · ${caseItem.concept}`;
+  if (layerBadge) layerBadge.textContent = "Pending";
 
   const quoteEl = document.getElementById('studio-evidence-quote');
-  if (quoteEl) quoteEl.textContent = "Extracting grounded show-command citations...";
+  if (quoteEl) quoteEl.textContent = "Grounded show-command citations appear here after the run.";
 
   const whyMattersEl = document.getElementById('studio-why-matters');
-  if (whyMattersEl) whyMattersEl.innerHTML = `<strong>Why this matters:</strong> Observations from show-command captures corroborate root cause at ${caseItem.osi_layer}.`;
+  if (whyMattersEl) whyMattersEl.innerHTML = `<strong>Why this matters:</strong> the AI must tie its root cause to a line you can see in the show output above.`;
 
   const nextCmdEl = document.getElementById('studio-next-cmd');
-  if (nextCmdEl) nextCmdEl.textContent = `$ ${caseItem.expected_next_command || "show running-config"}`;
+  if (nextCmdEl) nextCmdEl.textContent = "$ —";
 
   const nextCmdPurpose = document.getElementById('studio-cmd-purpose');
-  if (nextCmdPurpose) nextCmdPurpose.textContent = `Purpose: Verify active ${caseItem.concept} configuration and telemetry on device.`;
+  if (nextCmdPurpose) nextCmdPurpose.textContent = "The single most decisive command to confirm the fault.";
 
   // Numbered Fix Steps
-  renderFixSteps(caseItem.expected_fix || "Configure corrective commands on Cisco device.");
+  renderFixSteps("Run the pipeline to generate remediation steps.");
 
   // 8. Mandatory Human Review Reset
   const gatePill = document.getElementById('gate-status-pill');
@@ -502,7 +502,11 @@ function resetPipelineTracker() {
     }
   }
   const statusText = document.getElementById('pipeline-status-text');
-  if (statusText) statusText.textContent = 'Standby · Ready to Execute';
+  if (statusText) statusText.textContent = 'Standby · press "Execute Complete Diagnosis Pipeline"';
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function resetDeterministicChips() {
@@ -808,44 +812,55 @@ async function runStudioDiagnosis() {
 
   const btn = document.getElementById('btn-run-diagnosis-engine');
   btn.disabled = true;
-  btn.textContent = "Analyzing Network Evidence...";
+  btn.textContent = "Running investigation...";
 
-  // 1. Start Investigation Pipeline Animation
   const statusPill = document.getElementById('studio-status-pill');
   if (statusPill) {
-    statusPill.textContent = 'Investigation In Progress';
+    statusPill.textContent = 'Investigation in progress';
     statusPill.className = 'studio-status-pill running';
   }
-
   const pipelineStatus = document.getElementById('pipeline-status-text');
-  if (pipelineStatus) pipelineStatus.textContent = 'Evaluating Deterministic Rules & LLM Pipeline...';
 
-  // Animate Pipeline Steps
-  document.getElementById('pipe-step-1').className = 'pipeline-step-item completed';
-  document.getElementById('pipe-step-2').className = 'pipeline-step-item active';
+  // Reduced-motion users skip the staged walk.
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const stepDelay = reduceMotion ? 0 : 300;
+  const setStep = (n, cls) => {
+    const el = document.getElementById(`pipe-step-${n}`);
+    if (el) el.className = `pipeline-step-item ${cls}`;
+  };
+  const stepLabels = {
+    1: 'Ingesting symptom, topology and show output...',
+    2: 'Running deterministic rule checks...',
+    3: 'Collecting policy / rule findings...',
+    4: 'Deriving the AI root cause...',
+    5: 'Cross-checking the answer against the evidence...',
+  };
 
   try {
-    const res = await fetch(`${API_BASE}/api/diagnose`, {
+    // Kick off the request now; walk the pipeline while it is in flight.
+    const pending = fetch(`${API_BASE}/api/diagnose`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symptom, topology_note: topology, show_outputs: showOutputs, case_id: caseId })
     });
 
+    for (let n = 1; n <= 5; n++) {
+      setStep(n, 'active');
+      if (pipelineStatus) pipelineStatus.textContent = `Step ${n} / 6 — ${stepLabels[n]}`;
+      await sleep(stepDelay);
+      setStep(n, 'completed');
+    }
+
+    const res = await pending;
     if (!res.ok) throw new Error('Diagnosis pipeline failed');
     const data = await res.json();
     state.activeDiagnosis = data;
 
-    // Complete Pipeline Steps
-    document.getElementById('pipe-step-2').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-3').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-4').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-5').className = 'pipeline-step-item completed';
-    document.getElementById('pipe-step-6').className = 'pipeline-step-item active';
-
-    if (pipelineStatus) pipelineStatus.textContent = 'Investigation Complete · Awaiting Human Safety Sign-Off';
+    setStep(6, 'active');
+    if (pipelineStatus) pipelineStatus.textContent = 'Investigation complete · awaiting human safety sign-off';
 
     if (statusPill) {
-      statusPill.textContent = 'Diagnosed · Awaiting Review';
+      statusPill.textContent = 'Diagnosed · awaiting review';
       statusPill.className = 'studio-status-pill pending';
     }
 
@@ -965,7 +980,13 @@ async function runStudioDiagnosis() {
 
   } catch (err) {
     console.error('Diagnosis error:', err);
-    alert('Failed to execute diagnosis. Check server logs.');
+    if (pipelineStatus) pipelineStatus.textContent = 'Pipeline failed — check the server and try again.';
+    if (statusPill) {
+      statusPill.textContent = 'Investigation failed';
+      statusPill.className = 'studio-status-pill rejected';
+    }
+    const rc = document.getElementById('studio-root-cause');
+    if (rc) rc.textContent = 'The diagnosis request failed. Make sure the server is running, then run the pipeline again.';
   } finally {
     btn.disabled = false;
     btn.textContent = "Execute Complete Diagnosis Pipeline";
