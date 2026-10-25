@@ -34,6 +34,7 @@
 - [Repository File Structure](#-repository-file-structure)
 - [Collaborating & Contributing](#-collaborating--contributing)
 - [Documentation Index](#-documentation-index)
+- [Certificate](#-certificate)
 - [License](#-license)
 
 ---
@@ -359,6 +360,18 @@ Please check out our comprehensive **[Collaborating Guide (`COLLABORATING.md`)](
 - 🎬 **[Demo Script (`docs/DEMO_SCRIPT.md`)](docs/DEMO_SCRIPT.md)**: Step-by-step 5–10 minute demonstration walkthrough for presentations.
 - 📋 **[Cisco Requirements Audit (`docs/CISCO_REQUIREMENTS_AUDIT.md`)](docs/CISCO_REQUIREMENTS_AUDIT.md)**: Full verification matrix against Cisco project deliverables.
 - 🤝 **[Collaborating Guidelines (`COLLABORATING.md`)](COLLABORATING.md)**: Guidelines for contributing code, rules, cases, and tests.
+
+---
+
+## 🎓 Certificate
+
+Completed the **Cisco AICTE Virtual Internship Program in Artificial Intelligence** (June – August 2026), issued by Cisco Networking Academy. NetSage AI is the project built during this internship.
+
+<p align="center">
+  <a href="docs/certificate/cisco-aicte-ai-virtual-internship-certificate.pdf">
+    <img src="docs/certificate/certificate.png" alt="Cisco AICTE Virtual Internship Certificate - Rajarshi Ghosh" width="700" />
+  </a>
+</p>
 
 ---
 
